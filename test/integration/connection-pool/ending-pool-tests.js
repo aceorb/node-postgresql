@@ -11,11 +11,11 @@ test('disconnects', function() {
     helper.pg.connect(config, function(err, client, done) {
       assert.isNull(err);
       client.query("SELECT * FROM NOW()", function(err, result) {
-        setTimeout(function() {
+        process.nextTick(function() {
           assert.equal(called, false, "Should not have disconnected yet")
           sink.add();
           done();
-        }, 0)
+        })
       })
     })
   })
