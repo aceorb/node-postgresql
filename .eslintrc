@@ -1,14 +1,19 @@
 {
-  "extends": ["eslint:recommended"],
-  "plugins": ["prettier"],
-  "rules": {
-    "prettier/prettier": "error",
-    "prefer-const": "error",
-    "no-var": "error"
+  "plugins": [
+    "node"
+  ],
+  "extends": [
+    "standard",
+    "eslint:recommended",
+    "plugin:node/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2017
   },
   "env": {
-    "es6": true,
     "node": true,
-    "mocha": true
+    "es6": true
+  },
+  "rules": {
   }
 }
