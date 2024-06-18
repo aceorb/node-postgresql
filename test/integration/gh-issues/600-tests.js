@@ -1,7 +1,5 @@
-"use strict";
 var async = require('async');
 var helper = require('../test-helper');
-const suite = new helper.Suite()
 
 var db = helper.client();
 
@@ -55,14 +53,13 @@ var steps = [
   insertDataBar
 ]
 
-suite.test('test if query fails', function(done) {
+test('test if query fails', function() {
   async.series(steps, assert.success(function() {
     db.end()
-    done()
   }))
 })
 
-suite.test('test if prepare works but bind fails', function(done) {
+test('test if prepare works but bind fails', function() {
   var client = helper.client();
   var q = {
     text: 'SELECT $1::int as name',
@@ -74,7 +71,6 @@ suite.test('test if prepare works but bind fails', function(done) {
     client.query(q, assert.calls(function(err, res) {
       assert.ifError(err);
       client.end();
-      done()
     }));
   }));
 });

@@ -1,7 +1,7 @@
-"use strict";
+var co = require('co')
+
 var buffers = require('../../test-buffers')
 var helper = require('./test-helper')
-var suite = new helper.Suite()
 
 var net = require('net')
 
@@ -59,11 +59,6 @@ var testServer = function (server, cb) {
     // connect a client to it
     var client = new helper.Client(options)
     client.connect()
-      .catch((err) => {
-        assert(err instanceof Error)
-        clearTimeout(timeoutId)
-        server.close(cb)
-      })
 
     // after 50 milliseconds, drop the client
     setTimeout(function() {
@@ -74,15 +69,22 @@ var testServer = function (server, cb) {
     var timeoutId = setTimeout(function () {
       throw new Error('Client should have emitted an error but it did not.')
     }, 5000)
+
+    // return our wait token
+    client.on('error', function () {
+      clearTimeout(timeoutId)
+      server.close(cb)
+    })
   })
 }
 
-suite.test('readyForQuery server', (done) => {
-  const respondingServer = new Server(buffers.readyForQuery())
-  testServer(respondingServer, done)
-})
-
-suite.test('silent server', (done) => {
+// test being disconnected after readyForQuery
+const respondingServer = new Server(buffers.readyForQuery())
+testServer(respondingServer, function () {
+  process.stdout.write('.')
+  // test being disconnected from a server that never responds
   const silentServer = new Server()
-  testServer(silentServer, done)
+  testServer(silentServer, function () {
+    process.stdout.write('.')
+  })
 })

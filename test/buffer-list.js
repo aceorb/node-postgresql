@@ -1,5 +1,4 @@
-"use strict";
-global.BufferList = function() {
+BufferList = function() {
   this.buffers = [];
 };
 var p = BufferList.prototype;
@@ -10,7 +9,7 @@ p.add = function(buffer, front) {
 };
 
 p.addInt16 = function(val, front) {
-  return this.add(Buffer.from([(val >>> 8),(val >>> 0)]),front);
+  return this.add(Buffer([(val >>> 8),(val >>> 0)]),front);
 };
 
 p.getByteLength = function(initial) {
@@ -20,7 +19,7 @@ p.getByteLength = function(initial) {
 };
 
 p.addInt32 = function(val, first) {
-  return this.add(Buffer.from([
+  return this.add(Buffer([
     (val >>> 24 & 0xFF),
     (val >>> 16 & 0xFF),
     (val >>> 8 & 0xFF),
@@ -30,14 +29,14 @@ p.addInt32 = function(val, first) {
 
 p.addCString = function(val, front) {
   var len = Buffer.byteLength(val);
-  var buffer = Buffer.alloc(len+1);
+  var buffer = new Buffer(len+1);
   buffer.write(val);
   buffer[len] = 0;
   return this.add(buffer, front);
 };
 
 p.addChar = function(char, first) {
-  return this.add(Buffer.from(char,'utf8'), first);
+  return this.add(Buffer(char,'utf8'), first);
 };
 
 p.join = function(appendLength, char) {
@@ -50,7 +49,7 @@ p.join = function(appendLength, char) {
     this.addChar(char, true);
     length++;
   }
-  var result = Buffer.alloc(length);
+  var result = Buffer(length);
   var index = 0;
   this.buffers.forEach(function(buffer) {
     buffer.copy(result, index, 0);

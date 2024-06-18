@@ -1,4 +1,3 @@
-"use strict";
 var helper = require(__dirname + '/../test-helper');
 var assert = require('assert');
 var ConnectionParameters = require(__dirname + '/../../../lib/connection-parameters');
@@ -68,12 +67,12 @@ test('ConnectionParameters initializing from config', function() {
 });
 
 test('escape spaces if present', function() {
-  var subject = new ConnectionParameters('postgres://localhost/post gres');
+  subject = new ConnectionParameters('postgres://localhost/post gres');
   assert.equal(subject.database, 'post gres');
 });
 
 test('do not double escape spaces', function() {
-  var subject = new ConnectionParameters('postgres://localhost/post%20gres');
+  subject = new ConnectionParameters('postgres://localhost/post%20gres');
   assert.equal(subject.database, 'post gres');
 });
 

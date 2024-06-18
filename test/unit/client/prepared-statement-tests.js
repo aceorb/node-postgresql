@@ -1,6 +1,4 @@
-"use strict";
-var helper = require('./test-helper');
-var Query = require('../../../lib/query')
+var helper = require(__dirname + '/test-helper');
 
 var client = helper.client();
 var con = client.connection;
@@ -51,10 +49,10 @@ test('bound command', function() {
   test('simple, unnamed bound command', function() {
     assert.ok(client.connection.emit('readyForQuery'));
 
-    var query = client.query(new Query({
+    var query = client.query({
       text: 'select * from X where name = $1',
       values: ['hi']
-    }));
+    });
 
     assert.emits(query,'end', function() {
       test('parse argument', function() {

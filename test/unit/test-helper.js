@@ -1,10 +1,7 @@
-"use strict";
+var helper = require(__dirname+'/../test-helper');
 var EventEmitter = require('events').EventEmitter;
-
-var helper = require('../test-helper');
-var Connection = require('../../lib/connection');
-
-global.MemoryStream = function() {
+var Connection = require(__dirname + '/../../lib/connection');
+MemoryStream = function() {
   EventEmitter.call(this);
   this.packets = [];
 };
@@ -22,7 +19,7 @@ p.setKeepAlive = function(){};
 
 p.writable = true;
 
-const createClient = function() {
+createClient = function() {
   var stream = new MemoryStream();
   stream.readyState = "open";
   var client = new Client({
@@ -32,6 +29,4 @@ const createClient = function() {
   return client;
 };
 
-module.exports = Object.assign({}, helper, {
-  createClient: createClient,
-});
+module.exports = helper;

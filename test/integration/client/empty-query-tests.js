@@ -1,21 +1,17 @@
-"use strict";
-var helper = require('./test-helper');
-const suite = new helper.Suite()
+var helper = require(__dirname+'/test-helper');
+var client = helper.client();
 
-suite.test("empty query message handling", function(done) {
-  const client = helper.client();
+test("empty query message handling", function() {
   assert.emits(client, 'drain', function() {
-    client.end(done);
+    client.end();
   });
   client.query({text: ""});
 });
 
-suite.test('callback supported', function(done) {
-  const client = helper.client();
+test('callback supported', assert.calls(function() {
   client.query("", function(err, result) {
     assert.isNull(err);
     assert.empty(result.rows);
-    client.end(done)
   })
-})
+}))
 

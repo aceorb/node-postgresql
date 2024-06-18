@@ -1,15 +1,14 @@
-"use strict";
-var helper = require('./../test-helper');
+var helper = require(__dirname + '/../test-helper');
 
 if(helper.args.native) {
-  Client = require('./../../lib/native');
+  Client = require(__dirname + '/../../lib/native');
   helper.Client = Client;
   helper.pg = helper.pg.native;
 }
 
 //creates a client from cli parameters
 helper.client = function(cb) {
-  var client = new Client();
+  var client = new Client(helper.config);
   client.connect(cb);
   return client;
 };

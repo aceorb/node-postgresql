@@ -1,4 +1,3 @@
-"use strict";
 var net = require('net');
 var helper = require(__dirname+'/../test-helper');
 var Connection = require(__dirname + '/../../../lib/connection');

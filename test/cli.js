@@ -1,4 +1,3 @@
-"use strict";
 var ConnectionParameters = require(__dirname + '/../lib/connection-parameters');
 var config = new ConnectionParameters(process.argv[2]);
 

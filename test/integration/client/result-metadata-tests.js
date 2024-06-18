@@ -1,10 +1,8 @@
-"use strict";
-var helper = require("./test-helper");
+var helper = require(__dirname + "/test-helper");
 var pg = helper.pg;
 
-const pool = new pg.Pool()
-new helper.Suite().test('should return insert metadata', function() {
-  pool.connect(assert.calls(function(err, client, done) {
+test('should return insert metadata', function() {
+  pg.connect(helper.config, assert.calls(function(err, client, done) {
     assert.isNull(err);
 
     helper.versionGTE(client, '9.0.0', assert.success(function(hasRowCount) {
@@ -22,10 +20,16 @@ new helper.Suite().test('should return insert metadata', function() {
             assert.isNull(err);
             if(hasRowCount) assert.equal(result.rowCount, 1);
             assert.equal(result.command, 'SELECT');
-            done();
-            process.nextTick(pool.end.bind(pool));
+            process.nextTick(pg.end.bind(pg));
           }));
         }));
+
+        assert.emits(q, 'end', function(result) {
+          assert.equal(result.command, "INSERT");
+          if(hasRowCount) assert.equal(result.rowCount, 1);
+          done();
+        });
+
       }));
     }));
   }));

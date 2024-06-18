@@ -1,4 +1,3 @@
-"use strict";
 var helper = require(__dirname + '/test-helper');
 var Connection = require(__dirname + '/../../../lib/connection');
 test("connection emits stream errors", function() {

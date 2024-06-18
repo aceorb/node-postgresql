@@ -1,9 +1,6 @@
-"use strict";
-var helper = require('./test-helper');
-const suite = new helper.Suite()
+var helper = require(__dirname + '/test-helper');
 
-
-suite.test("noData message handling", function() {
+test("noData message handling", function() {
 
   var client = helper.client();
 
@@ -25,6 +22,7 @@ suite.test("noData message handling", function() {
 
   client.query({
     name: 'insert',
+    text: 'insert into boom(size) values($1)',
     values: [101]
   });
 
@@ -32,10 +30,12 @@ suite.test("noData message handling", function() {
     name: 'fetch',
     text: 'select size from boom where size < $1',
     values: [101]
-  }, (err, res) => {
-    var row = res.rows[0]
-    assert.strictEqual(row.size, 100)
+  });
+
+  assert.emits(query, 'row', function(row) {
+    assert.strictEqual(row.size,100)
   });
 
   client.on('drain', client.end.bind(client));
+
 });

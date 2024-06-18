@@ -1,4 +1,3 @@
-"use strict";
 var helper = require(__dirname + '/test-helper');
 
 function createClient(callback) {

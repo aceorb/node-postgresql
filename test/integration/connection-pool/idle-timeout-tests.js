@@ -1,13 +1,14 @@
-"use strict";
 var helper = require('./test-helper');
+var _ = require('lodash')
 
+const config = _.extend({ }, helper.config, { idleTimeoutMillis: 50 })
 
-new helper.Suite().test('idle timeout', function () {
-  const config = Object.assign({}, helper.config, { idleTimeoutMillis: 50 })
-  const pool = new helper.pg.Pool(config)
-  pool.connect(assert.calls(function (err, client, done) {
-    assert.isNull(err);
-    client.query('SELECT NOW()');
-    done();
-  }));
+test('idle timeout', function() {
+ helper.pg.connect(config, assert.calls(function(err, client, done) {
+   assert.isNull(err);
+   client.query('SELECT NOW()');
+  //just let this one time out
+  //test will hang if pool doesn't timeout
+   done();
+ }));
 });

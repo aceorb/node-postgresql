@@ -17,7 +17,7 @@ help:
 
 test: test-unit
 
-test-all: jshint test-missing-native test-unit test-integration test-native
+test-all: jshint test-missing-native test-unit test-integration test-native test-binary
 
 
 update-npm:
@@ -36,10 +36,8 @@ test-connection:
 test-missing-native:
 	@echo "***Testing optional native install***"
 	@rm -rf node_modules/pg-native
-	@rm -rf node_modules/libpq
 	@node test/native/missing-native.js
 	@rm -rf node_modules/pg-native
-	@rm -rf node_modules/libpq
 
 node_modules/pg-native/index.js:
 	@npm i pg-native
@@ -62,3 +60,4 @@ test-pool:
 
 jshint:
 	@echo "***Starting jshint***"
+	@./node_modules/.bin/jshint lib

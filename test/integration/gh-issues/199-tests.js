@@ -1,4 +1,3 @@
-"use strict";
 var helper = require('../test-helper');
 var client = helper.client();
 

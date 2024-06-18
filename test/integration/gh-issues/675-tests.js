@@ -1,9 +1,7 @@
-"use strict";
 var helper = require('../test-helper');
 var assert = require('assert');
 
-const pool = new helper.pg.Pool()
-pool.connect(function(err, client, done) {
+helper.pg.connect(helper.config, function(err, client, done) {
   if (err) throw err;
 
   var c = 'CREATE TEMP TABLE posts (body TEXT)';
@@ -13,17 +11,17 @@ pool.connect(function(err, client, done) {
 
     c = 'INSERT INTO posts (body) VALUES ($1) RETURNING *';
 
-    var body = Buffer.from('foo');
+    var body = new Buffer('foo');
     client.query(c, [body], function(err) {
       if (err) throw err;
 
-      body = Buffer.from([]);
+      body = new Buffer([]);
       client.query(c, [body], function(err, res) {
         done();
 
         if (err) throw err;
         assert.equal(res.rows[0].body, '')
-        pool.end();
+        helper.pg.end();
       });
     });
   });

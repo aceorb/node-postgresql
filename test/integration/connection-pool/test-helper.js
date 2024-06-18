@@ -1,32 +1,32 @@
-"use strict";
-var helper = require("./../test-helper");
+var helper = require(__dirname + "/../test-helper");
 
-const suite = new helper.Suite()
+helper.testPoolSize = function(max) {
+  var sink = new helper.Sink(max, function() {
+    helper.pg.end();
+  });
 
-helper.testPoolSize = function (max) {
-  suite.test(`test ${max} queries executed on a pool rapidly`, (cb) => {
-    const pool = new helper.pg.Pool({ max: 10 })
-
-    var sink = new helper.Sink(max, function () {
-      pool.end(cb)
-    });
-
-    for (var i = 0; i < max; i++) {
-      pool.connect(function (err, client, done) {
-        assert.isNull(err);
-        client.query("SELECT * FROM NOW()")
-        client.query("select generate_series(0, 25)", function (err, result) {
-          assert.equal(result.rows.length, 26)
-        })
-        var query = client.query("SELECT * FROM NOW()", (err) => {
-          assert(!err)
-          sink.add();
-          done();
+  test("can pool " + max + " times", function() {
+    for(var i = 0; i < max; i++) {
+      helper.pg.poolSize = 10;
+      test("connection  #" + i + " executes", function() {
+        helper.pg.connect(helper.config, function(err, client, done) {
+          assert.isNull(err);
+          client.query("select * from person", function(err, result) {
+            assert.lengthIs(result.rows, 26)
+          })
+          client.query("select count(*) as c from person", function(err, result) {
+            assert.equal(result.rows[0].c, 26)
+          })
+          var query = client.query("SELECT * FROM NOW()")
+          query.on('end',function() {
+            sink.add();
+            done();
+          })
         })
       })
     }
   })
 }
 
-module.exports = Object.assign({}, helper, { suite: suite })
+module.exports = helper;
 

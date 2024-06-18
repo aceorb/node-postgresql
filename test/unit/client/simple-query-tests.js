@@ -1,6 +1,4 @@
-"use strict";
 var helper = require(__dirname + "/test-helper");
-var Query = require('../../../lib/query')
 
 test('executing query', function() {
 
@@ -66,7 +64,7 @@ test('executing query', function() {
   test("query event binding and flow", function() {
     var client = helper.client();
     var con = client.connection;
-    var query = client.query(new Query('whatever'));
+    var query = client.query('whatever');
 
     test("has no queries sent before ready", function() {
       assert.empty(con.queries);

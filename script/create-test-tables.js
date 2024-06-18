@@ -1,4 +1,3 @@
-"use strict";
 var args = require(__dirname + '/../test/cli');
 var pg = require(__dirname + '/../lib');
 
@@ -40,12 +39,15 @@ var con = new pg.Client({
 });
 con.connect();
 var query = con.query("drop table if exists person");
-con.query("create table person(id serial, name varchar(10), age integer)", (err, res) => {
+query.on('end', function() {
+  console.log("Dropped table 'person'")
+});
+con.query("create table person(id serial, name varchar(10), age integer)").on('end', function(){
   console.log("Created table person");
   console.log("Filling it with people");
-})
+});
 people.map(function(person) {
-  return con.query(new pg.Query("insert into person(name, age) values('"+person.name + "', '" + person.age + "')"));
+  return con.query("insert into person(name, age) values('"+person.name + "', '" + person.age + "')");
 }).pop().on('end', function(){
   console.log("Inserted 26 people");
   con.end();

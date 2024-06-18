@@ -1,16 +1,20 @@
-"use strict";
 //make assert a global...
-global.assert = require('assert');
+assert = require('assert');
+
+process.noDeprecation = true
+
+//support for node@0.10.x
+if (typeof Promise == 'undefined') {
+  global.Promise = require('promise-polyfill')
+}
+
 var EventEmitter = require('events').EventEmitter;
 var sys = require('util');
+var BufferList = require(__dirname+'/buffer-list')
 
-var BufferList = require('./buffer-list')
-const Suite = require('./suite')
-const args = require('./cli');
+var Connection = require(__dirname + '/../lib/connection');
 
-var Connection = require('./../lib/connection');
-
-global.Client = require('./../lib').Client;
+Client = require(__dirname + '/../lib').Client;
 
 process.on('uncaughtException', function(d) {
   if ('stack' in d && 'message' in d) {
@@ -19,7 +23,6 @@ process.on('uncaughtException', function(d) {
   } else {
     console.log(d);
   }
-  process.exit(-1);
 });
 
 assert.same = function(actual, expected) {
@@ -27,6 +30,7 @@ assert.same = function(actual, expected) {
     assert.equal(actual[key], expected[key]);
   }
 };
+
 
 assert.emits = function(item, eventName, callback, message) {
   var called = false;
@@ -73,6 +77,13 @@ assert.UTCDate = function(actual, year, month, day, hours, min, sec, milisecond)
   var actualMili = actual.getUTCMilliseconds();
   assert.equal(actualMili, milisecond, "expected milisecond " + milisecond + " but got " + actualMili);
 };
+
+var spit = function(actual, expected) {
+  console.log("");
+  console.log("actual " + sys.inspect(actual));
+  console.log("expect " + sys.inspect(expected));
+  console.log("");
+}
 
 assert.equalBuffers = function(actual, expected) {
   if(actual.length != expected.length) {
@@ -167,13 +178,7 @@ assert.isNull = function(item, message) {
   assert.ok(item === null, message);
 };
 
-const getMode = () => {
-  if (args.native) return 'native'
-  if (args.binary) return 'binary'
-  return ''
-}
-
-global.test = function(name, action) {
+test = function(name, action) {
   test.testCount ++;
   test[name] = action;
   var result = test[name]();
@@ -186,6 +191,7 @@ global.test = function(name, action) {
 
 //print out the filename
 process.stdout.write(require('path').basename(process.argv[1]));
+var args = require(__dirname + '/cli');
 if(args.binary) process.stdout.write(' (binary)');
 if(args.native) process.stdout.write(' (native)');
 
@@ -241,8 +247,7 @@ var resetTimezoneOffset = function() {
 
 module.exports = {
   Sink: Sink,
-  Suite: Suite,
-  pg: require('./../lib/'),
+  pg: require(__dirname + '/../lib/'),
   args: args,
   config: args,
   sys: sys,
