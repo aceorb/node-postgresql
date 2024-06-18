@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define LOG(msg) printf("%s\n",msg);
-#define TRACE(msg) //printf(%s\n, msg);
+#define TRACE(msg) //printf("%s\n", msg);
 
 
 #define THROW(msg) return ThrowException(Exception::Error(String::New(msg)));
@@ -250,6 +250,7 @@ public:
   bool copyInMode_;
   bool reading_;
   bool writing_;
+  bool ended_;
   Connection () : ObjectWrap ()
   {
     connection_ = NULL;
@@ -259,6 +260,7 @@ public:
     copyInMode_ = false;
     reading_ = false;
     writing_ = false;
+    ended_ = false;
     TRACE("Initializing ev watchers");
     read_watcher_.data = this;
     write_watcher_.data = this;
@@ -368,6 +370,7 @@ protected:
   //and hands off control to libev
   bool Connect(const char* conninfo)
   {
+    if(ended_) return true;
     connection_ = PQconnectStart(conninfo);
 
     if (!connection_) {
@@ -659,6 +662,7 @@ protected:
     StopWrite();
     DestroyConnection();
     Emit("_end");
+    ended_ = true;
   }
 
 private:
