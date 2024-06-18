@@ -1,5 +1,13 @@
 var helper = require(__dirname + '/../test-helper');
 var pg = require(__dirname + '/../../../lib');
+
+if(helper.args.native) {
+  pg = require(__dirname + '/../../../lib/native')
+}
+
+if(helper.args.libpq) {
+  pg = require(__dirname + "/../../../lib/binding");
+}
 var connectionString = helper.connectionString(__filename);
 
 var log = function() {
@@ -14,7 +22,7 @@ var sink = new helper.Sink(5, 10000, function() {
 test('api', function() {
   log("connecting to %s", connectionString)
   pg.connect(connectionString, assert.calls(function(err, client) {
-    assert.equal(err, null, "Failed to connect: " + sys.inspect(err));
+    assert.equal(err, null, "Failed to connect: " + helper.sys.inspect(err));
 
     client.query('CREATE TEMP TABLE band(name varchar(100))');
 
