@@ -13,10 +13,6 @@
 #define ESCAPE_SUPPORTED
 #endif
 
-#if PG_VERSION_NUM >= 90200
-#define SINGLE_ROW_SUPPORTED
-#endif
-
 #define THROW(msg) return ThrowException(Exception::Error(String::New(msg)));
 
 using namespace v8;
@@ -208,9 +204,7 @@ public:
     }
 
     char* queryText = MallocCString(args[0]);
-    bool singleRowMode = (bool)args[1]->Int32Value();
-
-    int result = self->Send(queryText, singleRowMode);
+    int result = self->Send(queryText);
     free(queryText);
     if(result == 0) {
       lastErrorMessage = self->GetLastError();
@@ -240,8 +234,7 @@ public:
     String::Utf8Value queryName(args[0]);
     String::Utf8Value queryText(args[1]);
     int length = args[2]->Int32Value();
-    bool singleRowMode = (bool)args[3]->Int32Value();
-    self->SendPrepare(*queryName, *queryText, length, singleRowMode);
+    self->SendPrepare(*queryName, *queryText, length);
 
     return Undefined();
   }
@@ -281,13 +274,12 @@ public:
     }
 
     char* queryText = MallocCString(args[0]);
-    bool singleRowMode = (bool)args[2]->Int32Value();
 
     int result = 0;
     if(isPrepared) {
-      result = self->SendPreparedQuery(queryText, len, paramValues, singleRowMode);
+      result = self->SendPreparedQuery(queryText, len, paramValues);
     } else {
-      result = self->SendQueryParams(queryText, len, paramValues, singleRowMode);
+      result = self->SendQueryParams(queryText, len, paramValues);
     }
 
     free(queryText);
@@ -391,53 +383,33 @@ protected:
   }
 #endif
 
-  void enableSingleRowMode(bool enable)
-  {
-#ifdef SINGLE_ROW_SUPPORTED
-    if(enable == true) {
-        int mode = PQsetSingleRowMode(connection_);
-        if(mode == 1) {
-            TRACE("PQsetSingleRowMode enabled")
-        } else {
-            TRACE("PQsetSingleRowMode disabled")
-        }
-    } else {
-        TRACE("PQsetSingleRowMode disabled")
-    }
-#endif
-  }
-
-  int Send(const char *queryText, bool singleRowMode)
+  int Send(const char *queryText)
   {
     TRACE("js::Send")
     int rv = PQsendQuery(connection_, queryText);
-    enableSingleRowMode(singleRowMode);
     StartWrite();
     return rv;
   }
 
-  int SendQueryParams(const char *command, const int nParams, const char * const *paramValues, bool singleRowMode)
+  int SendQueryParams(const char *command, const int nParams, const char * const *paramValues)
   {
     TRACE("js::SendQueryParams")
     int rv = PQsendQueryParams(connection_, command, nParams, NULL, paramValues, NULL, NULL, 0);
-    enableSingleRowMode(singleRowMode);
     StartWrite();
     return rv;
   }
 
-  int SendPrepare(const char *name, const char *command, const int nParams, bool singleRowMode)
+  int SendPrepare(const char *name, const char *command, const int nParams)
   {
     TRACE("js::SendPrepare")
     int rv = PQsendPrepare(connection_, name, command, nParams, NULL);
-    enableSingleRowMode(singleRowMode);
     StartWrite();
     return rv;
   }
 
-  int SendPreparedQuery(const char *name, int nParams, const char * const *paramValues, bool singleRowMode)
+  int SendPreparedQuery(const char *name, int nParams, const char * const *paramValues)
   {
     int rv = PQsendQueryPrepared(connection_, name, nParams, paramValues, NULL, NULL, 0);
-    enableSingleRowMode(singleRowMode);
     StartWrite();
     return rv;
   }
@@ -659,7 +631,6 @@ protected:
     ExecStatusType status = PQresultStatus(result);
     switch(status) {
     case PGRES_TUPLES_OK:
-    case PGRES_SINGLE_TUPLE:
       {
         EmitRowDescription(result);
         HandleTuplesResult(result);
