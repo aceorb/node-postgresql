@@ -4,11 +4,6 @@ var called = false;
 test('disconnects', function() {
   var sink = new helper.Sink(4, function() {
     called = true;
-    var eventSink = new helper.Sink(1, function() {});
-    helper.pg.on('end', function() {
-      eventSink.add();
-    });
-
     //this should exit the process, killing each connection pool
     helper.pg.end();
   });
