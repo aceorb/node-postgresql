@@ -18,6 +18,9 @@ var ConnectionParameters = require('./connection-parameters')
 var Query = require('./query')
 var defaults = require('./defaults')
 var Connection = require('./connection')
+if (process.env.PG_FAST_CONNECTION) {
+  Connection = require('./connection-fast')
+}
 
 var Client = function (config) {
   EventEmitter.call(this)
