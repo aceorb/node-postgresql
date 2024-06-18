@@ -52,6 +52,14 @@ describe('parse', function(){
     subject.client_encoding.should.equal('utf8');
   });
 
+  it('initializing with unix domain socket, username and password', function(){
+    var subject = parse('socket://brian:pw@/var/run/?db=mydb');
+    subject.user.should.equal('brian');
+    subject.password.should.equal('pw');
+    subject.host.should.equal('/var/run/');
+    subject.database.should.equal('mydb');
+  });
+
   it('password contains  < and/or >  characters', function(){
     var sourceConfig = {
       user:'brian',
@@ -140,6 +148,12 @@ describe('parse', function(){
     var connectionString = 'pg:///?ssl=1';
     var subject = parse(connectionString);
     subject.ssl.should.equal(true);
+  });
+
+  it('configuration parameter ssl=0', function(){
+    var connectionString = 'pg:///?ssl=0';
+    var subject = parse(connectionString);
+    subject.ssl.should.equal(false);
   });
 
   it('set ssl', function () {

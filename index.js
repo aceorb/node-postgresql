@@ -24,6 +24,10 @@ function parse(str) {
     }
   }
 
+  var auth = (result.auth || ':').split(':');
+  config.user = auth[0];
+  config.password = auth.splice(1).join(':');
+
   config.port = result.port;
   if(result.protocol == 'socket:') {
     config.host = decodeURI(result.pathname);
@@ -41,12 +45,12 @@ function parse(str) {
   }
   config.database = pathname && decodeURI(pathname);
 
-  var auth = (result.auth || ':').split(':');
-  config.user = auth[0];
-  config.password = auth.splice(1).join(':');
-
   if (config.ssl === 'true' || config.ssl === '1') {
     config.ssl = true;
+  }
+
+  if (config.ssl === '0') {
+    config.ssl = false;
   }
 
   if (config.sslcert || config.sslkey || config.sslrootcert) {
