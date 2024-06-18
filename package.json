@@ -1,6 +1,6 @@
 {
   "name": "pg",
-  "version": "0.15.1",
+  "version": "0.14.1",
   "description": "PostgreSQL client - pure javascript & libpq with the same API",
   "keywords": [
     "postgres",
@@ -22,7 +22,7 @@
     "deprecate": "~0.1.0"
   },
   "devDependencies": {
-    "jshint": "1.1.0"
+    "jshint": "git://github.com/jshint/jshint.git"
   },
   "scripts": {
     "test": "make test-all connectionString=pg://postgres@localhost:5432/postgres",
