@@ -14,10 +14,6 @@
           'include_dirs': ['<!@(pg_config --includedir)'],
           'libraries' : ['-lpq -L<!@(pg_config --libdir)']
         }],
-        ['OS=="solaris"', {
-          'include_dirs': ['<!@(pg_config --includedir)'],
-          'libraries' : ['-lpq -L<!@(pg_config --libdir)']
-        }],
         ['OS=="win"', {
           'include_dirs': ['<!@(pg_config --includedir)'],
           'libraries' : ['libpq.lib'],
