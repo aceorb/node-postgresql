@@ -53,8 +53,6 @@ module.exports = {
 
   fallback_application_name: undefined,
 
-  options: undefined,
-
   parseInputDatesAsUTC: false,
 
   // max milliseconds any query using this connection will execute for before timing out in error.
