@@ -101,7 +101,7 @@ assert.success = function(callback) {
       if(err) {
         console.log(err);
       }
-      assert(!err);
+      assert.isNull(err);
       callback(arg);
     });
   } else if (callback.length === 2) {
@@ -109,7 +109,7 @@ assert.success = function(callback) {
       if(err) {
         console.log(err);
       }
-      assert(!err);
+      assert.isNull(err);
       callback(arg1, arg2);
     });
   } else {

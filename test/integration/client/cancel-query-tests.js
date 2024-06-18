@@ -1,4 +1,3 @@
-return console.log('cancel-query-tests.js: GET TO PASS');
 var helper = require(__dirname+"/test-helper");
 
 //before running this test make sure you run the script create-test-tables
