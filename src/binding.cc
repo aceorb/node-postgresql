@@ -1,6 +1,7 @@
 #include <pg_config.h>
 #include <libpq-fe.h>
-#include <nan.h>
+#include <node.h>
+#include <node_buffer.h>
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -16,10 +17,29 @@
 #define SINGLE_ROW_SUPPORTED
 #endif
 
-#define THROW(msg) NanThrowError(msg); NanReturnUndefined();
+#define THROW(msg) return ThrowException(Exception::Error(String::New(msg)));
 
 using namespace v8;
 using namespace node;
+
+static Persistent<String> severity_symbol;
+static Persistent<String> code_symbol;
+static Persistent<String> detail_symbol;
+static Persistent<String> hint_symbol;
+static Persistent<String> position_symbol;
+static Persistent<String> internalPosition_symbol;
+static Persistent<String> internalQuery_symbol;
+static Persistent<String> where_symbol;
+static Persistent<String> file_symbol;
+static Persistent<String> line_symbol;
+static Persistent<String> routine_symbol;
+static Persistent<String> name_symbol;
+static Persistent<String> value_symbol;
+static Persistent<String> type_symbol;
+static Persistent<String> channel_symbol;
+static Persistent<String> payload_symbol;
+static Persistent<String> emit_symbol;
+static Persistent<String> command_symbol;
 
 class Connection : public ObjectWrap {
 
@@ -29,11 +49,30 @@ public:
   static void
   Init (Handle<Object> target)
   {
-    NanScope();
+    HandleScope scope;
     Local<FunctionTemplate> t = FunctionTemplate::New(New);
 
     t->InstanceTemplate()->SetInternalFieldCount(1);
-    t->SetClassName(NanSymbol("Connection"));
+    t->SetClassName(String::NewSymbol("Connection"));
+
+    emit_symbol = NODE_PSYMBOL("emit");
+    severity_symbol = NODE_PSYMBOL("severity");
+    code_symbol = NODE_PSYMBOL("code");
+    detail_symbol = NODE_PSYMBOL("detail");
+    hint_symbol = NODE_PSYMBOL("hint");
+    position_symbol = NODE_PSYMBOL("position");
+    internalPosition_symbol = NODE_PSYMBOL("internalPosition");
+    internalQuery_symbol = NODE_PSYMBOL("internalQuery");
+    where_symbol = NODE_PSYMBOL("where");
+    file_symbol = NODE_PSYMBOL("file");
+    line_symbol = NODE_PSYMBOL("line");
+    routine_symbol = NODE_PSYMBOL("routine");
+    name_symbol = NODE_PSYMBOL("name");
+    value_symbol = NODE_PSYMBOL("value");
+    type_symbol = NODE_PSYMBOL("dataTypeID");
+    channel_symbol = NODE_PSYMBOL("channel");
+    payload_symbol = NODE_PSYMBOL("payload");
+    command_symbol = NODE_PSYMBOL("command");
 
     NODE_SET_PROTOTYPE_METHOD(t, "connect", Connect);
 #ifdef ESCAPE_SUPPORTED
@@ -68,9 +107,10 @@ public:
   }
 
   //v8 entry point into Connection#connect
-  static NAN_METHOD(Connect)
+  static Handle<Value>
+  Connect(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
     if(args.Length() == 0 || !args[0]->IsString()) {
       THROW("Must include connection string as only argument to connect");
@@ -83,13 +123,14 @@ public:
       self -> DestroyConnection();
     }
 
-    NanReturnUndefined();
+    return Undefined();
   }
 
   //v8 entry point into Connection#cancel
-  static NAN_METHOD(Cancel)
+  static Handle<Value>
+  Cancel(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
 
     bool success = self->Cancel();
@@ -98,14 +139,15 @@ public:
       self -> DestroyConnection();
     }
 
-    NanReturnUndefined();
+    return Undefined();
   }
 
 #ifdef ESCAPE_SUPPORTED
   //v8 entry point into Connection#escapeIdentifier
-  static NAN_METHOD(EscapeIdentifier)
+  static Handle<Value>
+  EscapeIdentifier(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
 
     char* inputStr = MallocCString(args[0]);
@@ -124,13 +166,14 @@ public:
     Local<Value> jsStr = String::New(escapedStr, strlen(escapedStr));
     PQfreemem(escapedStr);
 
-    NanReturnValue(jsStr);
+    return scope.Close(jsStr);
   }
 
   //v8 entry point into Connection#escapeLiteral
-  static NAN_METHOD(EscapeLiteral)
+  static Handle<Value>
+  EscapeLiteral(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
 
     char* inputStr = MallocCString(args[0]);
@@ -149,14 +192,15 @@ public:
     Local<Value> jsStr = String::New(escapedStr, strlen(escapedStr));
     PQfreemem(escapedStr);
 
-    NanReturnValue(jsStr);
+    return scope.Close(jsStr);
   }
 #endif
 
   //v8 entry point into Connection#_sendQuery
-  static NAN_METHOD(SendQuery)
+  static Handle<Value>
+  SendQuery(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
     const char *lastErrorMessage;
     if(!args[0]->IsString()) {
@@ -174,22 +218,23 @@ public:
     }
     //TODO should we flush before throw?
     self->Flush();
-    NanReturnUndefined();
+    return Undefined();
   }
 
   //v8 entry point into Connection#_sendQueryWithParams
-  static NAN_METHOD(SendQueryWithParams)
+  static Handle<Value>
+  SendQueryWithParams(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     //dispatch non-prepared parameterized query
-    DispatchParameterizedQuery(args, false);
-    NanReturnUndefined();
+    return DispatchParameterizedQuery(args, false);
   }
 
   //v8 entry point into Connection#_sendPrepare(string queryName, string queryText, int nParams)
-  static NAN_METHOD(SendPrepare)
+  static Handle<Value>
+  SendPrepare(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
 
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
     String::Utf8Value queryName(args[0]);
@@ -198,33 +243,32 @@ public:
     bool singleRowMode = (bool)args[3]->Int32Value();
     self->SendPrepare(*queryName, *queryText, length, singleRowMode);
 
-    NanReturnUndefined();
+    return Undefined();
   }
 
   //v8 entry point into Connection#_sendQueryPrepared(string queryName, string[] paramValues)
-  static NAN_METHOD(SendQueryPrepared)
+  static Handle<Value>
+  SendQueryPrepared(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     //dispatch prepared parameterized query
-    DispatchParameterizedQuery(args, true);
-    NanReturnUndefined();
+    return DispatchParameterizedQuery(args, true);
   }
 
-  static void DispatchParameterizedQuery(_NAN_METHOD_ARGS, bool isPrepared)
+  static Handle<Value>
+  DispatchParameterizedQuery(const Arguments& args, bool isPrepared)
   {
-    NanScope();
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
 
     String::Utf8Value queryName(args[0]);
     //TODO this is much copy/pasta code
     if(!args[0]->IsString()) {
-      NanThrowError("First parameter must be a string");
-      return;
+      THROW("First parameter must be a string");
     }
 
     if(!args[1]->IsArray()) {
-      NanThrowError("Values must be an array");
-      return;
+      THROW("Values must be an array");
     }
 
     Local<Array> jsParams = Local<Array>::Cast(args[1]);
@@ -233,8 +277,7 @@ public:
 
     char** paramValues = ArgToCStringArray(jsParams);
     if(!paramValues) {
-      NanThrowError("Unable to allocate char **paramValues from Local<Array> of v8 params");
-      return;
+      THROW("Unable to allocate char **paramValues from Local<Array> of v8 params");
     }
 
     char* queryText = MallocCString(args[0]);
@@ -250,21 +293,22 @@ public:
     free(queryText);
     ReleaseCStringArray(paramValues, len);
     if(result == 1) {
-      return;
+      return Undefined();
     }
     self->EmitLastError();
-    NanThrowError("Postgres returned non-1 result from query dispatch.");
+    THROW("Postgres returned non-1 result from query dispatch.");
   }
 
   //v8 entry point into Connection#end
-  static NAN_METHOD(End)
+  static Handle<Value>
+  End(const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
 
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
 
     self->End();
-    NanReturnUndefined();
+    return Undefined();
   }
 
   uv_poll_t read_watcher_;
@@ -296,18 +340,20 @@ public:
   {
   }
 
-  static NAN_METHOD(SendCopyFromChunk) {
-    NanScope();
+  static Handle<Value>
+  SendCopyFromChunk(const Arguments& args) {
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
     //TODO handle errors in some way
     if (args.Length() < 1 && !Buffer::HasInstance(args[0])) {
       THROW("SendCopyFromChunk requires 1 Buffer argument");
     }
     self->SendCopyFromChunk(args[0]->ToObject());
-    NanReturnUndefined();
+    return Undefined();
   }
-  static NAN_METHOD(EndCopyFrom) {
-    NanScope();
+  static Handle<Value>
+  EndCopyFrom(const Arguments& args) {
+    HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
     char * error_msg = NULL;
     if (args[0]->IsString()) {
@@ -316,18 +362,19 @@ public:
     //TODO handle errors in some way
     self->EndCopyFrom(error_msg);
     free(error_msg);
-    NanReturnUndefined();
+    return Undefined();
   }
 
 protected:
   //v8 entry point to constructor
-  static NAN_METHOD(New)
+  static Handle<Value>
+  New (const Arguments& args)
   {
-    NanScope();
+    HandleScope scope;
     Connection *connection = new Connection();
     connection->Wrap(args.This());
 
-    NanReturnValue(args.This());
+    return args.This();
   }
 
 #ifdef ESCAPE_SUPPORTED
@@ -476,7 +523,7 @@ protected:
 
   void HandleNotice(const char *message)
   {
-    NanScope();
+    HandleScope scope;
     Handle<Value> notice = String::New(message);
     Emit("notice", &notice);
   }
@@ -505,7 +552,7 @@ protected:
 
       //declare handlescope as this method is entered via a libuv callback
       //and not part of the public v8 interface
-      NanScope();
+      HandleScope scope;
       if (this->copyOutMode_) {
         this->HandleCopyOut();
       }
@@ -537,8 +584,8 @@ protected:
       TRACE("PQnotifies");
       while ((notify = PQnotifies(connection_))) {
         Local<Object> result = Object::New();
-        result->Set(NanSymbol("channel"), String::New(notify->relname));
-        result->Set(NanSymbol("payload"), String::New(notify->extra));
+        result->Set(channel_symbol, String::New(notify->relname));
+        result->Set(payload_symbol, String::New(notify->extra));
         Handle<Value> res = (Handle<Value>)result;
         Emit("notification", &res);
         PQfreemem(notify);
@@ -557,9 +604,11 @@ protected:
   bool HandleCopyOut () {
     char * buffer = NULL;
     int copied;
+    Buffer * chunk;
     copied = PQgetCopyData(connection_, &buffer, 1);
     while (copied > 0) { 
-      Local<Value> node_chunk = NanNewBufferHandle(buffer, copied); 
+      chunk = Buffer::New(buffer, copied);
+      Local<Value> node_chunk = Local<Value>::New(chunk->handle_); 
       Emit("copyData", &node_chunk);
       PQfreemem(buffer);
       copied = PQgetCopyData(connection_, &buffer, 1);
@@ -584,18 +633,18 @@ protected:
   //javascript & c++ might introduce overhead (requires benchmarking)
   void EmitRowDescription(const PGresult* result)
   {
-    NanScope();
+    HandleScope scope;
     Local<Array> row = Array::New();
     int fieldCount = PQnfields(result);
     for(int fieldNumber = 0; fieldNumber < fieldCount; fieldNumber++) {
       Local<Object> field = Object::New();
       //name of field
       char* fieldName = PQfname(result, fieldNumber);
-      field->Set(NanSymbol("name"), String::New(fieldName));
+      field->Set(name_symbol, String::New(fieldName));
 
       //oid of type of field
       int fieldType = PQftype(result, fieldNumber);
-      field->Set(NanSymbol("dataTypeID"), Integer::New(fieldType));
+      field->Set(type_symbol, Integer::New(fieldType));
 
       row->Set(Integer::New(fieldNumber), field);
     }
@@ -657,10 +706,10 @@ protected:
 
   void EmitCommandMetaData(PGresult* result)
   {
-    NanScope();
+    HandleScope scope;
     Local<Object> info = Object::New();
-    info->Set(NanSymbol("command"), String::New(PQcmdStatus(result)));
-    info->Set(NanSymbol("value"), String::New(PQcmdTuples(result)));
+    info->Set(command_symbol, String::New(PQcmdStatus(result)));
+    info->Set(value_symbol, String::New(PQcmdTuples(result)));
     Handle<Value> e = (Handle<Value>)info;
     Emit("_cmdStatus", &e);
   }
@@ -671,7 +720,7 @@ protected:
   //javascript & c++ might introduce overhead (requires benchmarking)
   void HandleTuplesResult(const PGresult* result)
   {
-    NanScope();
+    HandleScope scope;
     int rowCount = PQntuples(result);
     for(int rowNumber = 0; rowNumber < rowCount; rowNumber++) {
       //create result object for this row
@@ -695,7 +744,7 @@ protected:
 
   void HandleErrorResult(const PGresult* result)
   {
-    NanScope();
+    HandleScope scope;
     //instantiate the return object as an Error with the summary Postgres message
     TRACE("ReadResultField");
     const char* errorMessage = PQresultErrorField(result, PG_DIAG_MESSAGE_PRIMARY);
@@ -707,25 +756,24 @@ protected:
     Local<Object> msg = Local<Object>::Cast(Exception::Error(String::New(errorMessage)));
     TRACE("AttachErrorFields");
     //add the other information returned by Postgres to the error object
-    AttachErrorField(result, msg, NanSymbol("severity"), PG_DIAG_SEVERITY);
-    AttachErrorField(result, msg, NanSymbol("code"), PG_DIAG_SQLSTATE);
-    AttachErrorField(result, msg, NanSymbol("detail"), PG_DIAG_MESSAGE_DETAIL);
-    AttachErrorField(result, msg, NanSymbol("hint"), PG_DIAG_MESSAGE_HINT);
-    AttachErrorField(result, msg, NanSymbol("position"), PG_DIAG_STATEMENT_POSITION);
-    AttachErrorField(result, msg, NanSymbol("internalPosition"), PG_DIAG_INTERNAL_POSITION);
-    AttachErrorField(result, msg, NanSymbol("internalQuery"), PG_DIAG_INTERNAL_QUERY);
-    AttachErrorField(result, msg, NanSymbol("where"), PG_DIAG_CONTEXT);
-    AttachErrorField(result, msg, NanSymbol("file"), PG_DIAG_SOURCE_FILE);
-    AttachErrorField(result, msg, NanSymbol("line"), PG_DIAG_SOURCE_LINE);
-    AttachErrorField(result, msg, NanSymbol("routine"), PG_DIAG_SOURCE_FUNCTION);
+    AttachErrorField(result, msg, severity_symbol, PG_DIAG_SEVERITY);
+    AttachErrorField(result, msg, code_symbol, PG_DIAG_SQLSTATE);
+    AttachErrorField(result, msg, detail_symbol, PG_DIAG_MESSAGE_DETAIL);
+    AttachErrorField(result, msg, hint_symbol, PG_DIAG_MESSAGE_HINT);
+    AttachErrorField(result, msg, position_symbol, PG_DIAG_STATEMENT_POSITION);
+    AttachErrorField(result, msg, internalPosition_symbol, PG_DIAG_INTERNAL_POSITION);
+    AttachErrorField(result, msg, internalQuery_symbol, PG_DIAG_INTERNAL_QUERY);
+    AttachErrorField(result, msg, where_symbol, PG_DIAG_CONTEXT);
+    AttachErrorField(result, msg, file_symbol, PG_DIAG_SOURCE_FILE);
+    AttachErrorField(result, msg, line_symbol, PG_DIAG_SOURCE_LINE);
+    AttachErrorField(result, msg, routine_symbol, PG_DIAG_SOURCE_FUNCTION);
     Handle<Value> m = msg;
     TRACE("EmitError");
     Emit("_error", &m);
   }
 
-  void AttachErrorField(const PGresult *result, const Local<Object> msg, const Local<String> symbol, int fieldcode)
+  void AttachErrorField(const PGresult *result, const Local<Object> msg, const Persistent<String> symbol, int fieldcode)
   {
-    NanScope();
     char *val = PQresultErrorField(result, fieldcode);
     if(val) {
       msg->Set(symbol, String::New(val));
@@ -745,26 +793,26 @@ protected:
 private:
   //EventEmitter was removed from c++ in node v0.5.x
   void Emit(const char* message) {
-    NanScope();
+    HandleScope scope;
     Handle<Value> args[1] = { String::New(message) };
     Emit(1, args);
   }
 
   void Emit(const char* message, Handle<Value>* arg) {
-    NanScope();
+    HandleScope scope;
     Handle<Value> args[2] = { String::New(message), *arg };
     Emit(2, args);
   }
 
   void Emit(int length, Handle<Value> *args) {
-    NanScope();
+    HandleScope scope;
 
-    Local<Value> emit_v = NanObjectWrapHandle(this)->Get(NanSymbol("emit"));
+    Local<Value> emit_v = this->handle_->Get(emit_symbol);
     assert(emit_v->IsFunction());
     Local<Function> emit_f = emit_v.As<Function>();
 
     TryCatch tc;
-    emit_f->Call(NanObjectWrapHandle(this), length, args);
+    emit_f->Call(this->handle_, length, args);
     if(tc.HasCaught()) {
       FatalException(tc);
     }
@@ -801,7 +849,6 @@ private:
 
   void EmitError(const char *message)
   {
-    NanScope();
     Local<Value> exception = Exception::Error(String::New(message));
     Emit("_error", &exception);
   }
@@ -947,7 +994,7 @@ private:
 
 extern "C" void init (Handle<Object> target)
 {
-  NanScope();
+  HandleScope scope;
   Connection::Init(target);
 }
 NODE_MODULE(binding, init)
