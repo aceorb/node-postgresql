@@ -1,50 +1,33 @@
 {
-  "name": "pg",
-  "version": "7.12.1",
-  "description": "PostgreSQL client - pure javascript & libpq with the same API",
-  "keywords": [
-    "database",
-    "libpq",
-    "pg",
-    "postgre",
-    "postgres",
-    "postgresql",
-    "rdbms"
-  ],
-  "homepage": "http://github.com/brianc/node-postgres",
+  "name": "pg-cursor",
+  "version": "2.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": " mocha && eslint ."
+  },
   "repository": {
     "type": "git",
-    "url": "git://github.com/brianc/node-postgres.git"
+    "url": "git://github.com/brianc/node-pg-cursor.git"
   },
-  "author": "Brian Carlson <brian.m.carlson@gmail.com>",
-  "main": "./lib",
-  "dependencies": {
-    "buffer-writer": "2.0.0",
-    "packet-reader": "1.0.0",
-    "pg-connection-string": "0.1.3",
-    "pg-pool": "^2.0.4",
-    "pg-types": "^2.1.0",
-    "pgpass": "1.x",
-    "semver": "4.3.2"
-  },
-  "devDependencies": {
-    "async": "0.9.0",
-    "bluebird": "3.5.2",
-    "co": "4.6.0",
-    "eslint": "^6.0.1",
-    "eslint-config-standard": "^13.0.1",
-    "eslint-plugin-import": "^2.18.1",
-    "eslint-plugin-node": "^9.1.0",
-    "eslint-plugin-promise": "^4.2.1",
-    "eslint-plugin-standard": "^4.0.0",
-    "pg-copy-streams": "0.3.0"
-  },
-  "minNativeVersion": "2.0.0",
-  "scripts": {
-    "test": "make test-all"
-  },
+  "author": "Brian M. Carlson",
   "license": "MIT",
-  "engines": {
-    "node": ">= 4.5.0"
+  "devDependencies": {
+    "eslint": "^6.5.1",
+    "eslint-config-prettier": "^6.4.0",
+    "eslint-plugin-import": "^2.7.0",
+    "eslint-plugin-prettier": "^3.1.1",
+    "mocha": "^6.2.2",
+    "pg": "^7.12.1",
+    "prettier": "^1.18.2"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 120,
+    "trailingComma": "es5",
+    "singleQuote": true
   }
 }
