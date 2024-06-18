@@ -1,97 +1,168 @@
-node-pg-cursor
-==============
+#node-postgres
 
-Use a PostgreSQL result cursor from node with an easy to use API.
+[![Build Status](https://secure.travis-ci.org/brianc/node-postgres.png?branch=master)](http://travis-ci.org/brianc/node-postgres)
 
-### why?
+PostgreSQL client for node.js.  Pure JavaScript and native libpq bindings.
 
-Sometimes you need to itterate through a table in chunks.  It's extremely inefficient to use hand-crafted `LIMIT` and `OFFSET` queries to do this.
-PostgreSQL provides built-in functionality to fetch a "cursor" to your results and page through the cursor efficiently fetching chunks of the results with full MVCC compliance.  
+## Installation
 
-This actually ends up pairing very nicely with node's _asyncness_ and handling a lot of data.  PostgreSQL is rad.
+    npm install pg
+       
+## Examples
 
-### example
+### Simple
 
-```js
-var Cursor = require('pg-cursor')
-var pg = require('pg')
+Connect to a postgres instance, run a query, and disconnect.
 
-pg.connect(function(err, client, done) {
+```javascript
+var pg = require('pg'); 
+//or native libpq bindings
+//var pg = require('pg').native
 
-  //imagine some_table has 30,000,000 results where prop > 100
-  //lets create a query cursor to efficiently deal with the huge result set
-  var cursor = client.query(new Cursor('SELECT * FROM some_table WHERE prop > $1', [100]))
-  
-  //read the first 100 rows from this cursor
-  cursor.read(100, function(err, rows) {
+var conString = "postgres://postgres:1234@localhost/postgres";
+
+var client = new pg.Client(conString);
+client.connect(function(err) {
+  if(err) {
+    return console.error('could not connect to postgres', err);
+  }
+  client.query('SELECT NOW() AS "theTime"', function(err, result) {
     if(err) {
-      //cursor error - release the client
-      //normally you'd do app-specific error handling here
-      return done(err)
+      return console.error('error running query', err);
     }
-    
-    //when the cursor is exhausted and all rows have been returned
-    //all future calls to `cursor#read` will return an empty row array
-    //so if we received no rows, release the client and be done
-    if(!rows.length) return done()
-    
-    //do something with your rows
-    //when you're ready, read another chunk from
-    //your result
-    
-    
-    cursor.read(2000, function(err, rows) {
-      //I think you get the picture, yeah?
-      //if you dont...open an issue - I'd love to help you out!
-      
-      //Also - you probably want to use some sort of async or promise library to deal with paging
-      //through your cursor results.  node-pg-cursor makes no asumptions for you on that front.
-    })
-  })
+    console.log(result.rows[0].theTime);
+    //output: Tue Jan 15 2013 19:12:47 GMT-600 (CST)
+    client.end();
+  });
 });
+
 ```
 
-### api
+### Client pooling
 
-#### var Cursor = require('pg-cursor')
+Typically you will access the PostgreSQL server through a pool of clients.  node-postgres ships with a built in pool to help get you up and running quickly.
 
-#### constructor Cursor(string queryText, array queryParameters)
+```javascript
+var pg = require('pg');
+var conString = "postgres://postgres:1234@localhost/postgres";
 
-Creates an instance of a query cursor.  Pass this instance to node-postgres [`client#query`](https://github.com/brianc/node-postgres/wiki/Client#wiki-method-query-parameterized)
+pg.connect(conString, function(err, client, done) {
+  if(err) {
+  	return console.error('error fetching client from pool', err);
+  }
+  client.query('SELECT $1::int AS numbor', ['1'], function(err, result) {
+    //call `done()` to release the client back to the pool
+    done();
+    
+    if(err) {
+      return console.error('error running query', err);
+    }
+    console.log(result.rows[0].numbor);
+    //output: 1
+  });
+});
 
-#### cursor#read(int rowCount, function callback(Error err, Array rows)
-
-Read `rowCount` rows from the cursor instance.  The `callback` will be called when the rows are available, loaded into memory, parsed, and converted to JavaScript types.
-
-If the cursor has read to the end of the result sets all subsequent calls to `cursor#read` will return a 0 length array of rows.  I'm open to other ways to signal the end of a cursor, but this has worked out well for me so far.
-
-### install
-
-```sh
-$ npm install pg-cursor
 ```
-___note___: this depends on _either_ `npm install pg` or `npm install pg.js`, but you __must__ be using the pure JavaScript client.  This will __not work__ with the native bindings.
 
-### license
+## Documentation
 
-The MIT License (MIT)
+Documentation is a work in progress primarily taking place on the github WIKI
 
-Copyright (c) 2013 Brian M. Carlson
+### [Documentation](https://github.com/brianc/node-postgres/wiki)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## Native Bindings
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+node-postgres contains a pure JavaScript driver and also exposes JavaScript bindings to libpq.  You can use either interface.  I personally use the JavaScript bindings as the are quite fast, and I like having everything implemented in JavaScript.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+To use native libpq bindings replace `require('pg')` with `require('pg').native`.
+
+The two share the same interface so __no other code changes should be required__.  If you find yourself having to change code other than the require statement when switching from `pg` to `pg.native`, please report an issue.
+
+## Features
+
+* pure JavaScript client and native libpq bindings share _the same api_
+* optional connection pooling
+* extensible js<->postgresql data-type coercion
+* supported PostgreSQL features
+  * parameterized queries
+  * named statements with query plan caching
+  * async notifications with `LISTEN/NOTIFY`
+  * bulk import & export with `COPY TO/COPY FROM`
+
+## Contributing
+
+__I love contributions.__
+
+You are welcome contribute via pull requests.  If you need help getting the tests running locally feel free to email me or gchat me.
+
+I will __happily__ accept your pull request if it:
+- _has tests_
+- looks reasonable
+- does not break backwards compatibility
+- satisfies jshint
+
+Information about the testing processes is in the [wiki](https://github.com/brianc/node-postgres/wiki/Testing).
+
+If you need help or have questions about constructing a pull request I'll be glad to help out as well.
+
+## Support
+
+If at all possible when you open an issue please provide
+- version of node
+- version of postgres
+- smallest possible snippet of code to reproduce the problem
+
+Usually I'll pop the code into the repo as a test.  Hopefully the test fails.  Then I make the test pass.  Then everyone's happy!
+
+
+If you need help or run into _any_ issues getting node-postgres to work on your system please report a bug or contact me directly.  I am usually available via google-talk at my github account public email address.
+
+I usually tweet about any important status updates or changes to node-postgres.  
+Follow me [@briancarlson](https://twitter.com/briancarlson) to keep up to date.
+
+
+## Extras
+
+node-postgres is by design _low level_ with the bare minimum of abstraction.  These might help out:
+
+- https://github.com/brianc/node-pg-query-stream
+- https://github.com/brianc/node-pg-cursor
+- https://github.com/grncdr/node-any-db
+- https://github.com/brianc/node-sql
+
+
+## Production Use
+* [yammer.com](http://www.yammer.com)
+* [bayt.com](http://bayt.com)
+* [bitfloor.com](https://bitfloor.com)
+* [Vendly](http://www.vend.ly)
+* [SaferAging](http://www.saferaging.com)
+* [CartoDB](http://www.cartodb.com)
+* [Heap](https://heapanalytics.com)
+* [zoomsquare](http://www.zoomsquare.com/)
+* [WhenToManage](http://www.whentomanage.com)
+
+_If you use node-postgres in production and would like your site listed here, fork & add it._
+
+
+## License
+
+Copyright (c) 2010 Brian Carlson (brian.m.carlson@gmail.com)
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
