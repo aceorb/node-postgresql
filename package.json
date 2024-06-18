@@ -21,13 +21,17 @@
     "generic-pool": "2.0.3",
     "buffer-writer": "1.0.0",
     "pgpass": "0.0.1",
-    "nan": "~0.6.0"
+    "nan": "~0.6.0",
+    "packet-reader": "0.2.0",
+    "pg-types": "1.0.0"
   },
   "devDependencies": {
     "jshint": "1.1.0",
-    "semver": "~1.1.4"
+    "semver": "~1.1.4",
+    "async": "0.2.10"
   },
   "scripts": {
+    "changelog": "npm i github-changes && ./node_modules/.bin/github-changes -o brianc -r node-postgres -d pulls -a -v",
     "test": "make test-travis connectionString=postgres://postgres@localhost:5432/postgres",
     "install": "node-gyp rebuild || (exit 0)"
   },
