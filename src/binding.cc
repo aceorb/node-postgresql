@@ -78,18 +78,11 @@ public:
     TRACE("created class");
   }
 
-  //static function called by libuv as callback entrypoint
+  //static function called by libev as callback entrypoint
   static void
   io_event(uv_poll_t* w, int status, int revents)
   {
-
     TRACE("Received IO event");
-
-    if(status == -1) {
-      LOG("Connection error.");
-      return;
-    }
-
     Connection *connection = static_cast<Connection*>(w->data);
     connection->HandleIOEvent(revents);
   }
@@ -301,7 +294,7 @@ protected:
     return rv;
   }
 
-  bool Cancel()
+  int Cancel()
   {
     PGcancel* pgCancel = PQgetCancel(connection_);
     char errbuf[256];
@@ -386,9 +379,13 @@ protected:
     Emit("notice", &notice);
   }
 
-  //called to process io_events from libuv
+  //called to process io_events from libev
   void HandleIOEvent(int revents)
   {
+    if(revents & EV_ERROR) {
+      LOG("Connection error.");
+      return;
+    }
 
     if(connecting_) {
       TRACE("Processing connecting_ io");
@@ -396,8 +393,8 @@ protected:
       return;
     }
 
-    if(revents & UV_READABLE) {
-      TRACE("revents & UV_READABLE");
+    if(revents & EV_READ) {
+      TRACE("revents & EV_READ");
       if(PQconsumeInput(connection_) == 0) {
         End();
         EmitLastError();
@@ -405,7 +402,7 @@ protected:
         return;
       }
 
-      //declare handlescope as this method is entered via a libuv callback
+      //declare handlescope as this method is entered via a libev callback
       //and not part of the public v8 interface
       HandleScope scope;
 
@@ -435,8 +432,8 @@ protected:
 
     }
 
-    if(revents & UV_WRITABLE) {
-      TRACE("revents & UV_WRITABLE");
+    if(revents & EV_WRITE) {
+      TRACE("revents & EV_WRITE");
       if (PQflush(connection_) == 0) {
         StopWrite();
       }
