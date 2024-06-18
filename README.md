@@ -1,350 +1,223 @@
-# pg-pool
-[![Build Status](https://travis-ci.org/brianc/node-pg-pool.svg?branch=master)](https://travis-ci.org/brianc/node-pg-pool)
+#node-postgres
 
-A connection pool for node-postgres
+[![Build Status](https://secure.travis-ci.org/brianc/node-postgres.svg?branch=master)](http://travis-ci.org/brianc/node-postgres)
+[![Dependency Status](https://david-dm.org/brianc/node-postgres.svg)](https://david-dm.org/brianc/node-postgres)
+<span class="badge-npmversion"><a href="https://npmjs.org/package/pg" title="View this project on NPM"><img src="https://img.shields.io/npm/v/pg.svg" alt="NPM version" /></a></span>
+<span class="badge-npmdownloads"><a href="https://npmjs.org/package/pg" title="View this project on NPM"><img src="https://img.shields.io/npm/dm/pg.svg" alt="NPM downloads" /></a></span>
 
-## install
+Non-blocking PostgreSQL client for node.js.  Pure JavaScript and optional native libpq bindings.
+
+## Install
+
 ```sh
-npm i pg-pool pg
+$ npm install pg
 ```
 
-## use
+## Intro & Examples
 
-### create
-
-to use pg-pool you must first create an instance of a pool
+### Simple example
 
 ```js
-var Pool = require('pg-pool')
+var pg = require('pg');
 
-//by default the pool uses the same
-//configuration as whatever `pg` version you have installed
-var pool = new Pool()
+// instantiate a new client
+// the client will read connection information from
+// the same environment variables used by postgres cli tools
+var client = new pg.Client();
 
-//you can pass properties to the pool
-//these properties are passed unchanged to both the node-postgres Client constructor
-//and the node-pool (https://github.com/coopernurse/node-pool) constructor
-//allowing you to fully configure the behavior of both
-var pool2 = new Pool({
-  database: 'postgres',
-  user: 'brianc',
-  password: 'secret!',
-  port: 5432,
-  ssl: true,
-  max: 20, //set pool max size to 20
-  min: 4, //set min pool size to 4
-  idleTimeoutMillis: 1000 //close idle clients after 1 second
-})
+// connect to our database
+client.connect(function (err) {
+  if (err) throw err;
 
-//you can supply a custom client constructor
-//if you want to use the native postgres client
-var NativeClient = require('pg').native.Client
-var nativePool = new Pool({ Client: NativeClient })
+  // execute a query on our database
+  client.query('SELECT $1::text as name', ['brianc'], function (err, result) {
+    if (err) throw err;
 
-//you can even pool pg-native clients directly
-var PgNativeClient = require('pg-native')
-var pgNativePool = new Pool({ Client: PgNativeClient })
+    // just print the result to the console
+    console.log(result.rows[0]); // outputs: { name: 'brianc' }
+
+    // disconnect the client
+    client.end(function (err) {
+      if (err) throw err;
+    });
+  });
+});
+
 ```
 
-##### Note:
-The Pool constructor does not support passing a Database URL as the parameter. To use pg-pool on heroku, for example, you need to parse the URL into a config object. Here is an example of how to parse a Database URL.
+### Client pooling
 
-```js
-const Pool = require('pg-pool');
-const url = require('url')
+If you're working on something like a web application which makes frequent queries you'll want to access the PostgreSQL server through a pool of clients.  Why?  For one thing, there is ~20-30 millisecond delay (YMMV) when connecting a new client to the PostgreSQL server because of the startup handshake.  Furthermore, PostgreSQL can support only a limited number of clients...it depends on the amount of ram on your database server, but generally more than 100 clients at a time is a __very bad thing__. :tm: Additionally, PostgreSQL can only execute 1 query at a time per connected client, so pipelining all queries for all requests through a single, long-lived client will likely introduce a bottleneck into your application if you need high concurrency.
 
-const params = url.parse(process.env.DATABASE_URL);
-const auth = params.auth.split(':');
+With that in mind we can imagine a situation where you have a web server which connects and disconnects a new client for every web request or every query (don't do this!).  If you get only 1 request at a time everything will seem to work fine, though it will be a touch slower due to the connection overhead. Once you get >100 simultaneous requests your web server will attempt to open 100 connections to the PostgreSQL backend and :boom: you'll run out of memory on the PostgreSQL server, your database will become unresponsive, your app will seem to hang, and everything will break. Boooo!
 
-const config = {
-  user: auth[0],
-  password: auth[1],
-  host: params.hostname,
-  port: params.port,
-  database: params.pathname.split('/')[1],
-  ssl: true
+__Good news__: node-postgres ships with built in client pooling.  Client pooling allows your application to use a pool of already connected clients and reuse them for each request to your application.  If your app needs to make more queries than there are available clients in the pool the queries will queue instead of overwhelming your database & causing a cascading failure. :thumbsup:
+
+```javascript
+var pg = require('pg');
+
+// create a config to configure both pooling behavior
+// and client options
+// note: all config is optional and the environment variables
+// will be read if the config is not present
+var config = {
+  user: 'foo', //env var: PGUSER
+  database: 'my_db', //env var: PGDATABASE
+  password: 'secret', //env var: PGPASSWORD
+  host: 'localhost', // Server hosting the postgres database
+  port: 5432, //env var: PGPORT
+  max: 10, // max number of clients in the pool
+  idleTimeoutMillis: 30000, // how long a client is allowed to remain idle before being closed
 };
 
-const pool = new Pool(config);
 
-/*
-  Transforms, 'progres://DBuser:secret@DBHost:#####/myDB', into
-  config = {
-    user: 'DBuser',
-    password: 'secret',
-    host: 'DBHost',
-    port: '#####',
-    database: 'myDB',
-    ssl: true
+//this initializes a connection pool
+//it will keep idle connections open for a 30 seconds
+//and set a limit of maximum 10 idle clients
+var pool = new pg.Pool(config);
+
+// to run a query we can acquire a client from the pool,
+// run a query on the client, and then return the client to the pool
+pool.connect(function(err, client, done) {
+  if(err) {
+    return console.error('error fetching client from pool', err);
   }
-*/
-``` 
+  client.query('SELECT $1::int AS number', ['1'], function(err, result) {
+    //call `done()` to release the client back to the pool
+    done();
 
-### acquire clients with a promise
-
-pg-pool supports a fully promise-based api for acquiring clients
-
-```js
-var pool = new Pool()
-pool.connect().then(client => {
-  client.query('select $1::text as name', ['pg-pool']).then(res => {
-    client.release()
-    console.log('hello from', res.rows[0].name)
-  })
-  .catch(e => {
-    client.release()
-    console.error('query error', e.message, e.stack)
-  })
-})
-```
-
-### plays nice with async/await
-
-this ends up looking much nicer if you're using [co](https://github.com/tj/co) or async/await:
-
-```js
-// with async/await
-(async () => {
-  var pool = new Pool()
-  var client = await pool.connect()
-  try {
-    var result = await client.query('select $1::text as name', ['brianc'])
-    console.log('hello from', result.rows[0])
-  } finally {
-    client.release()
-  }
-})().catch(e => console.error(e.message, e.stack))
-
-// with co
-co(function * () {
-  var client = yield pool.connect()
-  try {
-    var result = yield client.query('select $1::text as name', ['brianc'])
-    console.log('hello from', result.rows[0])
-  } finally {
-    client.release()
-  }
-}).catch(e => console.error(e.message, e.stack))
-```
-
-### your new favorite helper method
-
-because its so common to just run a query and return the client to the pool afterward pg-pool has this built-in:
-
-```js
-var pool = new Pool()
-var time = await pool.query('SELECT NOW()')
-var name = await pool.query('select $1::text as name', ['brianc'])
-console.log(name.rows[0].name, 'says hello at', time.rows[0].name)
-```
-
-you can also use a callback here if you'd like:
-
-```js
-var pool = new Pool()
-pool.query('SELECT $1::text as name', ['brianc'], function (err, res) {
-  console.log(res.rows[0].name) // brianc
-})
-```
-
-__pro tip:__ unless you need to run a transaction (which requires a single client for multiple queries) or you
-have some other edge case like [streaming rows](https://github.com/brianc/node-pg-query-stream) or using a [cursor](https://github.com/brianc/node-pg-cursor)
-you should almost always just use `pool.query`.  Its easy, it does the right thing :tm:, and wont ever forget to return
-clients back to the pool after the query is done.
-
-### drop-in backwards compatible
-
-pg-pool still and will always support the traditional callback api for acquiring a client.  This is the exact API node-postgres has shipped with for years:
-
-```js
-var pool = new Pool()
-pool.connect((err, client, done) => {
-  if (err) return done(err)
-
-  client.query('SELECT $1::text as name', ['pg-pool'], (err, res) => {
-    done()
-    if (err) {
-      return console.error('query error', e.message, e.stack)
+    if(err) {
+      return console.error('error running query', err);
     }
-    console.log('hello from', res.rows[0].name)
-  })
+    console.log(result.rows[0].number);
+    //output: 1
+  });
+});
+
+pool.on('error', function (err, client) {
+  // if an error is encountered by a client while it sits idle in the pool
+  // the pool itself will emit an error event with both the error and
+  // the client which emitted the original error
+  // this is a rare occurrence but can happen if there is a network partition
+  // between your application and the database, the database restarts, etc.
+  // and so you might want to handle it and at least log it out
+  console.error('idle client error', err.message, err.stack)
 })
 ```
 
-### shut it down
+node-postgres uses [pg-pool](https://github.com/brianc/node-pg-pool.git) to manage pooling. It bundles it and exports it for convenience.  If you want, you can `require('pg-pool')` and use it directly - it's the same as the constructor exported at `pg.Pool`.
 
-When you are finished with the pool if all the clients are idle the pool will close them after `config.idleTimeoutMillis` and your app
-will shutdown gracefully.  If you don't want to wait for the timeout you can end the pool as follows:
+It's __highly recommended__ you read the documentation for [pg-pool](https://github.com/brianc/node-pg-pool.git).
+
+
+[Here is an up & running quickly example](https://github.com/brianc/node-postgres/wiki/Example)
+
+
+For more information about `config.ssl` check [TLS (SSL) of nodejs](https://nodejs.org/dist/latest-v4.x/docs/api/tls.html)
+
+## [More Documentation](https://github.com/brianc/node-postgres/wiki)
+
+## Native Bindings
+
+To install the [native bindings](https://github.com/brianc/node-pg-native.git):
+
+```sh
+$ npm install pg pg-native
+```
+
+
+node-postgres contains a pure JavaScript protocol implementation which is quite fast, but you can optionally use [native](https://github.com/brianc/node-pg-native) [bindings](https://github.com/brianc/node-libpq) for a 20-30% increase in parsing speed (YMMV). Both versions are adequate for production workloads. I personally use the pure JavaScript implementation because I like knowing what's going on all the way down to the binary on the socket, and it allows for some fancier [use](https://github.com/brianc/node-pg-cursor) [cases](https://github.com/brianc/node-pg-query-stream) which are difficult to do with libpq. :smile:
+
+To use the native bindings, first install [pg-native](https://github.com/brianc/node-pg-native.git).  Once pg-native is installed, simply replace `var pg = require('pg')` with `var pg = require('pg').native`.  Make sure any exported constructors from `pg` are from the native instance.  Example:
 
 ```js
-var pool = new Pool()
-var client = await pool.connect()
-console.log(await client.query('select now()'))
-client.release()
-await pool.end()
+var pg = require('pg').native
+var Pool = require('pg').Pool // bad! this is not bound to the native client
+var Client = require('pg').Client // bad! this is the pure JavaScript client
+
+var pg = require('pg').native
+var Pool = pg.Pool // good! a pool bound to the native client
+var Client = pg.Client // good! this client uses libpq bindings
 ```
 
-### a note on instances
+#### API differences
 
-The pool should be a __long-lived object__ in your application.  Generally you'll want to instantiate one pool when your app starts up and use the same instance of the pool throughout the lifetime of your application.  If you are frequently creating a new pool within your code you likely don't have your pool initialization code in the correct place.  Example:
+node-postgres abstracts over the pg-native module to provide the same interface as the pure JavaScript version. Care has been taken to keep the number of api differences between the two modules to a minimum.  
+However, currently some differences remain, especially :
+* the error object in pg-native is different : notably, the information about the postgres error code is not present in field `code` but in the field `sqlState` , and the name of a few other fields is different (see https://github.com/brianc/node-postgres/issues/938, https://github.com/brianc/node-postgres/issues/972).
+So for example, if you rely on error.code in your application, your will have to adapt your code to work with native bindings.
+* the notification object has a few less properties  (see https://github.com/brianc/node-postgres/issues/1045)
+* column objects have less properties (see https://github.com/brianc/node-postgres/issues/988)
+* the modules https://github.com/brianc/node-pg-copy-streams and https://github.com/brianc/node-pg-query-stream do not work with native bindings (you will have to require 'pg' to use them).
 
-```
-// assume this is a file in your program at ./your-app/lib/db.js
+Thus, it is recommended you use either the pure JavaScript or native bindings in both development and production and don't mix & match them in the same process - it can get confusing!
 
-// correct usage: create the pool and let it live
-// 'globally' here, controlling access to it through exported methods
-var pool = new pg.Pool()
+## Features
 
-// this is the right way to export the query method
-module.exports.query = (text, values) => {
-  console.log('query:', text, values)
-  return pool.query(text, values)
-}
+* pure JavaScript client and native libpq bindings share _the same api_
+* connection pooling
+* extensible js<->postgresql data-type coercion
+* supported PostgreSQL features
+  * parameterized queries
+  * named statements with query plan caching
+  * async notifications with `LISTEN/NOTIFY`
+  * bulk import & export with `COPY TO/COPY FROM`
 
-// this would be the WRONG way to export the connect method
-module.exports.connect = () => {
-  // notice how we would be creating a pool instance here
-  // every time we called 'connect' to get a new client?
-  // that's a bad thing & results in creating an unbounded
-  // number of pools & therefore connections
-  var aPool = new pg.Pool()
-  return aPool.connect()
-}
-```
+## Extras
 
-### events
+node-postgres is by design pretty light on abstractions.  These are some handy modules we've been using over the years to complete the picture.
+Entire list can be found on [wiki](https://github.com/brianc/node-postgres/wiki/Extras)
 
-Every instance of a `Pool` is an event emitter.  These instances emit the following events:
+## Contributing
 
-#### error
+__:heart: contributions!__
 
-Emitted whenever an idle client in the pool encounters an error.  This is common when your PostgreSQL server shuts down, reboots, or a network partition otherwise causes it to become unavailable while your pool has connected clients.
+If you need help getting the tests running locally or have any questions about the code when working on a patch please feel free to email me or gchat me.
 
-Example:
+I will __happily__ accept your pull request if it:
+- __has tests__
+- looks reasonable
+- does not break backwards compatibility
 
-```js
-const Pool = require('pg-pool')
-const pool = new Pool()
+Information about the testing processes is in the [wiki](https://github.com/brianc/node-postgres/wiki/Testing).
 
-// attach an error handler to the pool for when a connected, idle client
-// receives an error by being disconnected, etc
-pool.on('error', function(error, client) {
-  // handle this in the same way you would treat process.on('uncaughtException')
-  // it is supplied the error as well as the idle client which received the error
-})
-```
+Open source belongs to all of us, and we're all invited to participate!
 
-#### connect
+## Support
 
-Fired whenever the pool creates a __new__ `pg.Client` instance and successfully connects it to the backend.
+If at all possible when you open an issue please provide
+- version of node
+- version of postgres
+- smallest possible snippet of code to reproduce the problem
 
-Example:
+Usually I'll pop the code into the repo as a test.  Hopefully the test fails.  Then I make the test pass.  Then everyone's happy!
 
-```js
-const Pool = require('pg-pool')
-const pool = new Pool()
+If you need help or run into _any_ issues getting node-postgres to work on your system please report a bug or contact me directly.  I am usually available via google-talk at my github account public email address.  Remember this is a labor of love, and though I try to get back to everything sometimes life takes priority, and I might take a while.  It helps if you use nice code formatting in your issue, search for existing answers before posting, and come back and close out the issue if you figure out a solution.  The easier you can make it for me, the quicker I'll try and respond to you!
 
-var count = 0
+If you need deeper support, have application specific questions, would like to sponsor development, or want consulting around node & postgres please send me an email, I'm always happy to discuss!
 
-pool.on('connect', client => {
-  client.count = count++
-})
+I usually tweet about any important status updates or changes to node-postgres on twitter.
+Follow me [@briancarlson](https://twitter.com/briancarlson) to keep up to date.
 
-pool
-  .connect()
-  .then(client => {
-    return client
-      .query('SELECT $1::int AS "clientCount"', [client.count])
-      .then(res => console.log(res.rows[0].clientCount)) // outputs 0
-      .then(() => client)
-  })
-  .then(client => client.release())
 
-```
+## License
 
-#### acquire
+Copyright (c) 2010-2016 Brian Carlson (brian.m.carlson@gmail.com)
 
-Fired whenever the a client is acquired from the pool
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
 
-Example:
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
 
-This allows you to count the number of clients which have ever been acquired from the pool.
-
-```js
-var Pool = require('pg-pool')
-var pool = new Pool()
-
-var acquireCount = 0
-pool.on('acquire', function (client) {
-  acquireCount++
-})
-
-var connectCount = 0
-pool.on('connect', function () {
-  connectCount++
-})
-
-for (var i = 0; i < 200; i++) {
-  pool.query('SELECT NOW()')
-}
-
-setTimeout(function () {
-  console.log('connect count:', connectCount) // output: connect count: 10
-  console.log('acquire count:', acquireCount) // output: acquire count: 200
-}, 100)
-
-```
-
-### environment variables
-
-pg-pool & node-postgres support some of the same environment variables as `psql` supports.  The most common are:
-
-```
-PGDATABASE=my_db
-PGUSER=username
-PGPASSWORD="my awesome password"
-PGPORT=5432
-PGSSLMODE=require
-```
-
-Usually I will export these into my local environment via a `.env` file with environment settings or export them in `~/.bash_profile` or something similar.  This way I get configurability which works with both the postgres suite of tools (`psql`, `pg_dump`, `pg_restore`) and node, I can vary the environment variables locally and in production, and it supports the concept of a [12-factor app](http://12factor.net/) out of the box.
-
-## bring your own promise
-
-In versions of node `<=0.12.x` there is no native promise implementation available globally.  You can polyfill the promise globally like this:
-
-```js
-// first run `npm install promise-polyfill --save
-if (typeof Promise == 'undefined') {
-  global.Promise = require('promise-polyfill')
-}
-```
-
-You can use any other promise implementation you'd like.  The pool also allows you to configure the promise implementation on a per-pool level:
-
-```js
-var bluebirdPool = new Pool({
-  Promise: require('bluebird')
-})
-```
-
-__please note:__ in node `<=0.12.x` the pool will throw if you do not provide a promise constructor in one of the two ways mentioned above.  In node `>=4.0.0` the pool will use the native promise implementation by default; however, the two methods above still allow you to "bring your own."
-
-## tests
-
-To run tests clone the repo, `npm i` in the working dir, and then run `npm test`
-
-## contributions
-
-I love contributions.  Please make sure they have tests, and submit a PR.  If you're not sure if the issue is worth it or will be accepted it never hurts to open an issue to begin the conversation.  If you're interested in keeping up with node-postgres releated stuff, you can follow me on twitter at [@briancarlson](https://twitter.com/briancarlson) - I generally announce any noteworthy updates there.
-
-## license
-
-The MIT License (MIT)
-Copyright (c) 2016 Brian M. Carlson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
