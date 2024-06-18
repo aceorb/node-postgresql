@@ -1,5 +1,5 @@
 require(__dirname + '/test-helper');
-var Pool = require(__dirname + "/../../lib/utils").Pool;
+var Pool = require("utils").Pool;
 
 //this tests the monkey patching
 //to ensure comptability with older

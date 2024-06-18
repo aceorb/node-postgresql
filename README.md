@@ -3,15 +3,17 @@
 Non-blocking (async) pure JavaScript PostgreSQL client for node.js written
 with love and TDD.
 
-## Installation
+## alpha version
+
+### Installation
 
     npm install pg
 
-## Example
+### Example
 
     var pg = require('pg');
-    var connectionString = "pg://user:password@host:port/database";
-    pg.connect(connectionString, function(err, client) {
+    
+    pg.connect("pg://user:password@host:port/database", function(err, client) {
       if(err) {
         //handle connection error
       }
@@ -38,14 +40,14 @@ with love and TDD.
       }
     }
     
-## Philosophy
+### Philosophy
 
 * well tested
 * no monkey patching
 * no dependencies (...besides PostgreSQL)
 * [in-depth documentation](http://github.com/brianc/node-postgres/wiki) (work in progress)
 
-## features
+### features
 
 - prepared statement support
   - parameters
@@ -56,9 +58,8 @@ with love and TDD.
   - float <-> double, numeric
   - boolean <-> boolean
 - notification message support
-- connection pooling
-- mucho testing
-  ~250 tests executed on
+- tested like a Toyota
+  ~1000 assertions executed on
     - ubuntu
       - node v0.2.2, v0.2.3, v0.2.4, v0.2.5, v0.3.0, v0.3.1
       - postgres 8.4.4
@@ -66,31 +67,21 @@ with love and TDD.
       - node v0.2.2, v0.2.3, v0.2.4, v0.2.5, v0.3.0, v0.3.1
       - postgres v8.4.4, v9.0.1 installed both locally and on networked Windows 7
 
-## Contributing
+### Contributing
 
 clone the repo:
 
      git clone git://github.com/brianc/node-postgres
      cd node-postgres
-     make test
+     node test/run.js
 
 And just like magic, you're ready to contribute! <3
 
-### Contributors
-
-Many thanks to the following:
-
-* [creationix](https://github.com/creationix)
-* [felixge](https://github.com/felixge)
-* [pshc](https://github.com/pshc)
-* [pjornblomqvist](https://github.com/bjornblomqvist)
-* [JulianBirch](https://github.com/JulianBirch)
-
 ## More info please
 
-### [Documentation](node-postgres/wiki)
+### Documentation
 
-### __PLEASE__ check out the WIKI
+__PLEASE__ check out the [WIKI](node-postgres/wiki).  __MUCH__ more information there.
 
 ### Working?
 
@@ -98,7 +89,9 @@ Many thanks to the following:
 
 ### Why did you write this?
 
-As soon as I saw node.js for the first time I knew I had found something lovely and simple and _just what I always wanted!_.  So...I poked around for a while.  I was excited.  I still am!
+As soon as I saw node.js for the first time I knew I had found
+something lovely and simple and _just what I always wanted!_.  So...I
+poked around for a while.  I was excited.  I still am!
 
 I drew major inspiration from [postgres-js](http://github.com/creationix/postgres-js).
 
@@ -109,7 +102,9 @@ saw there.
 ### Plans for the future?
 
 - transparent prepared statement caching
+- connection pooling
 - more testings of error scenarios
+- streamline writing of buffers
 
 ## License
 
