@@ -139,8 +139,7 @@ var expect = function(callback, timeout) {
       "Expected execution of function to be fired within " + timeout
       + " milliseconds " +
       + " (hint: export TEST_TIMEOUT=<timeout in milliseconds>"
-      + " to change timeout globally)"
-      + callback.toString());
+      + " to change timeout globally)");
   }, timeout)
 
   if(callback.length < 3) {
