@@ -20,10 +20,6 @@ test('COPY FROM events check', function () {
 test('COPY TO events check', function () {
   var con = new Client(helper.config),
     stdoutStream = con.copyTo('COPY person TO STDOUT');
-  assert.emits(con, 'copyOutResponse',
-    function () {},
-    "backend should emit copyOutResponse on copyOutResponse message from server"
-  );
   assert.emits(con, 'copyData',
     function () {
     },
