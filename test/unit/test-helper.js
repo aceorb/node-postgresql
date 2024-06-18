@@ -1,12 +1,10 @@
-var helper = require(__dirname+'/../test-helper');
-var EventEmitter = require('events').EventEmitter;
-var Connection = require('connection');
+require(__dirname+'/../test-helper');
 MemoryStream = function() {
   EventEmitter.call(this);
   this.packets = [];
 };
 
-helper.sys.inherits(MemoryStream, EventEmitter);
+sys.inherits(MemoryStream, EventEmitter);
 
 var p = MemoryStream.prototype;
 

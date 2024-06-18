@@ -1,5 +1,4 @@
 var helper = require(__dirname + '/test-helper');
-var Connection = require('connection');
 var con = new Connection({stream: "NO"});
 var client = new Client({connection:con});
 
