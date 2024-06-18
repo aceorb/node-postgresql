@@ -31,7 +31,7 @@ fully TDD and with lots of love.
 
 ### Whirlwind tour
 
-    var Client = require('pg').Client;
+    var Client = require('node-postgres').Client;
     var client = new Client({
       user: 'brianc',
       database: 'test',
