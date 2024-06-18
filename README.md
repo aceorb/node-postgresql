@@ -1,88 +1,68 @@
-# node-postgres
+# pg-query-stream
 
-[![Build Status](https://secure.travis-ci.org/brianc/node-postgres.svg?branch=master)](http://travis-ci.org/brianc/node-postgres)
-[![Dependency Status](https://david-dm.org/brianc/node-postgres.svg)](https://david-dm.org/brianc/node-postgres)
-<span class="badge-npmversion"><a href="https://npmjs.org/package/pg" title="View this project on NPM"><img src="https://img.shields.io/npm/v/pg.svg" alt="NPM version" /></a></span>
-<span class="badge-npmdownloads"><a href="https://npmjs.org/package/pg" title="View this project on NPM"><img src="https://img.shields.io/npm/dm/pg.svg" alt="NPM downloads" /></a></span>
+[![Build Status](https://travis-ci.org/brianc/node-pg-query-stream.svg)](https://travis-ci.org/brianc/node-pg-query-stream)
 
-Non-blocking PostgreSQL client for Node.js.  Pure JavaScript and optional native libpq bindings.
+Receive result rows from [pg](https://github.com/brianc/node-postgres) as a readable (object) stream.
 
-## Install
 
-```sh
+## installation
+
+```bash
 $ npm install pg
+$ npm install pg-query-stream
 ```
 
----
-## :star: [Documentation](https://node-postgres.com) :star:
+_requires pg>=2.8.1_
 
 
-### Features
+## use
 
-* Pure JavaScript client and native libpq bindings share _the same API_
-* Connection pooling
-* Extensible JS<->PostgreSQL data-type coercion
-* Supported PostgreSQL features
-  * Parameterized queries
-  * Named statements with query plan caching
-  * Async notifications with `LISTEN/NOTIFY`
-  * Bulk import & export with `COPY TO/COPY FROM`
+```js
+var pg = require('pg')
+var QueryStream = require('pg-query-stream')
+var JSONStream = require('JSONStream')
 
-### Extras
+//pipe 1,000,000 rows to stdout without blowing up your memory usage
+pg.connect(function(err, client, done) {
+  if(err) throw err;
+  var query = new QueryStream('SELECT * FROM generate_series(0, $1) num', [1000000])
+  var stream = client.query(query)
+  //release the client when the stream is finished
+  stream.on('end', done)
+  stream.pipe(JSONStream.stringify()).pipe(process.stdout)
+})
+```
 
-node-postgres is by design pretty light on abstractions.  These are some handy modules we've been using over the years to complete the picture.
-The entire list can be found on our [wiki](https://github.com/brianc/node-postgres/wiki/Extras).
+The stream uses a cursor on the server so it efficiently keeps only a low number of rows in memory.
 
-## Support
+This is especially useful when doing [ETL](http://en.wikipedia.org/wiki/Extract,_transform,_load) on a huge table.  Using manual `limit` and `offset` queries to fake out async itteration through your data is cumbersom, and _way way way_ slower than using a cursor.
 
-node-postgres is free software.  If you encounter a bug with the library please open an issue on the [GitHub repo](https://github.com/brianc/node-postgres). If you have questions unanswered by the documentation please open an issue pointing out how the documentation was unclear & I will do my best to make it better!
+_note: this module only works with the JavaScript client, and does not work with the native bindings. libpq doesn't expose the protocol at a level where a cursor can be manipulated directly_
 
-When you open an issue please provide:
-- version of Node
-- version of Postgres
-- smallest possible snippet of code to reproduce the problem
+## contribution
 
-You can also follow me [@briancarlson](https://twitter.com/briancarlson) if that's your thing. I try to always announce noteworthy changes & developments with node-postgres on Twitter.
+I'm very open to contribution!  Open a pull request with your code or idea and we'll talk about it.  If it's not way insane we'll merge it in too: isn't open source awesome?
 
-### Professional Support
+## license
 
-I offer professional support for node-postgres.  I provide implementation, training, and many years of expertise on how to build applications with Node, Express, PostgreSQL, and React/Redux.  Please contact me at [brian.m.carlson@gmail.com](mailto:brian.m.carlson@gmail.com) to discuss how I can help your company be more successful!
+The MIT License (MIT)
 
-### Sponsorship :star:
+Copyright (c) 2013 Brian M. Carlson
 
-If you are benefiting from node-postgres and would like to help keep the project financially sustainable please visit Brian Carlson's [Patreon page](https://www.patreon.com/node_postgres).
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-## Contributing
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
-__:heart: contributions!__
-
-I will __happily__ accept your pull request if it:
-- __has tests__
-- looks reasonable
-- does not break backwards compatibility
-
-## Troubleshooting and FAQ
-
-The causes and solutions to common errors can be found among the [Frequently Asked Questions (FAQ)](https://github.com/brianc/node-postgres/wiki/FAQ)
-
-## License
-
-Copyright (c) 2010-2018 Brian Carlson (brian.m.carlson@gmail.com)
-
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
-
- The above copyright notice and this permission notice shall be included in
- all copies or substantial portions of the Software.
-
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
