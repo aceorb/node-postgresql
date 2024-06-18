@@ -1,6 +1,13 @@
 language: node_js
-node_js:
-  - "0.10"
-  - "0.11"
-env:
-  - PGUSER=postgres
+
+matrix:
+  include:
+    - node_js: "4"
+      addons:
+        postgresql: "9.1"
+    - node_js: "5"
+      addons:
+        postgresql: "9.4"
+    - node_js: "6"
+      addons:
+        postgresql: "9.4"
