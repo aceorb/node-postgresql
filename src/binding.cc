@@ -129,7 +129,6 @@ public:
   {
     HandleScope scope;
     Connection *self = ObjectWrap::Unwrap<Connection>(args.This());
-    const char *lastErrorMessage;
     if(!args[0]->IsString()) {
       THROW("First parameter must be a string query");
     }
@@ -138,8 +137,7 @@ public:
     int result = self->Send(queryText);
     free(queryText);
     if(result == 0) {
-      lastErrorMessage = self->GetLastError();
-      THROW(lastErrorMessage);
+      THROW("PQsendQuery returned error code");
     }
     //TODO should we flush before throw?
     self->Flush();
@@ -616,11 +614,6 @@ private:
   void EmitLastError()
   {
     EmitError(PQerrorMessage(connection_));
-  }
-
-  const char *GetLastError()
-  {
-    return PQerrorMessage(connection_);
   }
 
   void StopWrite()
