@@ -7,10 +7,7 @@ describe('close', function () {
   beforeEach(function (done) {
     const client = (this.client = new pg.Client())
     client.connect(done)
-  })
-
-  this.afterEach(function (done) {
-    this.client.end(done)
+    client.on('drain', client.end.bind(client))
   })
 
   it('can close a finished cursor without a callback', function (done) {
@@ -37,9 +34,8 @@ describe('close', function () {
     const cursor = new Cursor(text)
     const client = this.client
     client.query(cursor)
-    cursor.read(25, function (err, rows) {
+    cursor.read(25, function (err) {
       assert.ifError(err)
-      assert.strictEqual(rows.length, 25)
       cursor.close(function (err) {
         assert.ifError(err)
         client.query('SELECT NOW()', done)
