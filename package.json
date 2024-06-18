@@ -1,43 +1,54 @@
 {
-  "name": "pg-pool",
-  "version": "2.0.7",
-  "description": "Connection pool for node-postgres",
-  "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
-  "scripts": {
-    "test": " node_modules/.bin/mocha && node_modules/.bin/standard"
-  },
+  "name": "pg",
+  "version": "7.12.1",
+  "description": "PostgreSQL client - pure javascript & libpq with the same API",
+  "keywords": [
+    "database",
+    "libpq",
+    "pg",
+    "postgre",
+    "postgres",
+    "postgresql",
+    "rdbms"
+  ],
+  "homepage": "http://github.com/brianc/node-postgres",
   "repository": {
     "type": "git",
-    "url": "git://github.com/brianc/node-pg-pool.git"
+    "url": "git://github.com/brianc/node-postgres.git"
   },
-  "keywords": [
-    "pg",
-    "postgres",
-    "pool",
-    "database"
-  ],
-  "author": "Brian M. Carlson",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/brianc/node-pg-pool/issues"
+  "author": "Brian Carlson <brian.m.carlson@gmail.com>",
+  "main": "./lib",
+  "dependencies": {
+    "buffer-writer": "2.0.0",
+    "packet-reader": "1.0.0",
+    "pg-connection-string": "0.1.3",
+    "pg-pool": "^2.0.7",
+    "pg-types": "^2.1.0",
+    "pgpass": "1.x",
+    "semver": "4.3.2"
   },
-  "homepage": "https://github.com/brianc/node-pg-pool#readme",
   "devDependencies": {
-    "bluebird": "3.4.1",
+    "async": "0.9.0",
+    "bluebird": "3.5.2",
     "co": "4.6.0",
-    "expect.js": "0.3.1",
-    "lodash": "^4.17.11",
-    "mocha": "^5.2.0",
-    "pg": "*",
-    "pg-cursor": "^1.3.0",
-    "standard": "7.1.2",
-    "standard-format": "^2.2.4"
+    "eslint": "^6.0.1",
+    "eslint-config-standard": "^13.0.1",
+    "eslint-plugin-import": "^2.18.1",
+    "eslint-plugin-node": "^9.1.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.0",
+    "pg-copy-streams": "0.3.0"
   },
-  "dependencies": {},
-  "peerDependencies": {
-    "pg": ">5.0"
+  "minNativeVersion": "2.0.0",
+  "scripts": {
+    "test": "make test-all"
+  },
+  "files": [
+    "lib",
+    "SPONSORS.md"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 4.5.0"
   }
 }
