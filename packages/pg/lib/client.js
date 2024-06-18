@@ -18,9 +18,6 @@ var ConnectionParameters = require('./connection-parameters')
 var Query = require('./query')
 var defaults = require('./defaults')
 var Connection = require('./connection')
-if (process.env.PG_FAST_CONNECTION) {
-  Connection = require('./connection-fast')
-}
 
 var Client = function (config) {
   EventEmitter.call(this)
@@ -393,6 +390,9 @@ Client.prototype.getStartupConf = function () {
   }
   if (params.idle_in_transaction_session_timeout) {
     data.idle_in_transaction_session_timeout = String(parseInt(params.idle_in_transaction_session_timeout, 10))
+  }
+  if (params.options) {
+    data.options = params.options
   }
 
   return data
