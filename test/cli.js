@@ -17,8 +17,4 @@ for(var i = 0; i < process.argv.length; i++) {
   }
 }
 
-if(process.env['PG_TEST_NATIVE']) {
-  config.native = true;
-}
-
 module.exports = config;

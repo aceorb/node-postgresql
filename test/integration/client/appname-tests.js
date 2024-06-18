@@ -1,4 +1,3 @@
-return;
 var helper = require('./test-helper');
 var Client = helper.Client;
 

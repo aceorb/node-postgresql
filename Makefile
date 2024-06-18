@@ -33,6 +33,9 @@ upgrade-pg:
 bench:
 	@find benchmark -name "*-bench.js" | $(node-command)
 
+build/default/binding.node:
+	@node-gyp rebuild
+
 test-unit:
 	@find test/unit -name "*-tests.js" | $(node-command)
 
@@ -44,12 +47,12 @@ test-connection-binary:
 	@echo "***Testing binary connection***"
 	@node script/test-connection.js $(params) binary
 
-test-native:
+test-native: build/default/binding.node
 	@echo "***Testing native bindings***"
 	@find test/native -name "*-tests.js" | $(node-command)
 	@find test/integration -name "*-tests.js" | $(node-command) native
 
-test-integration: test-connection
+test-integration: test-connection build/default/binding.node
 	@echo "***Testing Pure Javascript***"
 	@find test/integration -name "*-tests.js" | $(node-command)
 
