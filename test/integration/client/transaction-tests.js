@@ -5,7 +5,8 @@ var sink = new helper.Sink(2, function() {
 });
 
 test('a single connection transaction', function() {
-  helper.pg.connect(helper.config, assert.success(function(client, done) {
+  helper.pg.connect(helper.config, assert.calls(function(err, client) {
+    assert.isNull(err);
 
     client.query('begin');
 
@@ -38,7 +39,6 @@ test('a single connection transaction', function() {
       client.query(getZed, assert.calls(function(err, result) {
         assert.isNull(err);
         assert.empty(result.rows);
-        done();
         sink.add();
       }))
     })
@@ -46,7 +46,8 @@ test('a single connection transaction', function() {
 })
 
 test('gh#36', function() {
-  helper.pg.connect(helper.config, assert.success(function(client, done) {
+  helper.pg.connect(helper.config, function(err, client) {
+    if(err) throw err;
     client.query("BEGIN");
     client.query({
       name: 'X',
@@ -66,7 +67,6 @@ test('gh#36', function() {
     }))
     client.query("COMMIT", function() {
       sink.add();
-      done();
     })
-  }));
+  })
 })
