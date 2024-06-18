@@ -222,15 +222,6 @@ var Sink = function(expected, timeout, callback) {
   }
 }
 
-var getTimezoneOffset = Date.prototype.getTimezoneOffset;
-
-var setTimezoneOffset = function(minutesOffset) {
-  Date.prototype.getTimezoneOffset = function () { return minutesOffset; };
-}
-
-var resetTimezoneOffset = function() {
-  Date.prototype.getTimezoneOffset = getTimezoneOffset;
-}
 
 module.exports = {
   Sink: Sink,
@@ -238,9 +229,7 @@ module.exports = {
   args: args,
   config: args,
   sys: sys,
-  Client: Client,
-  setTimezoneOffset: setTimezoneOffset,
-  resetTimezoneOffset: resetTimezoneOffset
+  Client: Client
 };
 
 
