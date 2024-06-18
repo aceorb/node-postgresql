@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "async": "2.6.4",
-    "bluebird": "3.5.2",
+    "bluebird": "3.7.2",
     "co": "4.6.0",
     "pg-copy-streams": "0.3.0"
   },
