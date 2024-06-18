@@ -1,202 +1,119 @@
-var expect = require('expect.js')
-var _ = require('lodash')
+var assert = require('assert')
+var Cursor = require('../')
+var pg = require('pg')
 
-var describe = require('mocha').describe
-var it = require('mocha').it
-var Promise = require('bluebird')
+var text = 'SELECT generate_series as num FROM generate_series(0, 5)'
 
-var Pool = require('../')
+describe('cursor', function() {
 
-if (typeof global.Promise === 'undefined') {
-  global.Promise = Promise
-}
+  beforeEach(function(done) {
+    var client = this.client = new pg.Client()
+    client.connect(done)
 
-describe('pool', function () {
-  it('can be used as a factory function', function () {
-    var pool = Pool()
-    expect(pool instanceof Pool).to.be.ok()
-    expect(typeof pool.connect).to.be('function')
+    this.pgCursor = function(text, values) {
+      client.on('drain', client.end.bind(client))
+      return client.query(new Cursor(text, values || []))
+    }
   })
 
-  describe('with callbacks', function () {
-    it('works totally unconfigured', function (done) {
-      var pool = new Pool()
-      pool.connect(function (err, client, release) {
-        if (err) return done(err)
-        client.query('SELECT NOW()', function (err, res) {
-          release()
-          if (err) return done(err)
-          expect(res.rows).to.have.length(1)
-          pool.end(done)
-        })
-      })
-    })
 
-    it('passes props to clients', function (done) {
-      var pool = new Pool({ binary: true })
-      pool.connect(function (err, client, release) {
-        release()
-        if (err) return done(err)
-        expect(client.binary).to.eql(true)
-        pool.end(done)
-      })
-    })
+  afterEach(function() {
+    this.client.end()
+  })
 
-    it('can run a query with a callback without parameters', function (done) {
-      var pool = new Pool()
-      pool.query('SELECT 1 as num', function (err, res) {
-        expect(res.rows[0]).to.eql({ num: 1 })
-        pool.end(function () {
-          done(err)
-        })
-      })
-    })
-
-    it('can run a query with a callback', function (done) {
-      var pool = new Pool()
-      pool.query('SELECT $1::text as name', ['brianc'], function (err, res) {
-        expect(res.rows[0]).to.eql({ name: 'brianc' })
-        pool.end(function () {
-          done(err)
-        })
-      })
-    })
-
-    it('passes connection errors to callback', function (done) {
-      var pool = new Pool({host: 'no-postgres-server-here.com'})
-      pool.query('SELECT $1::text as name', ['brianc'], function (err, res) {
-        expect(res).to.be(undefined)
-        expect(err).to.be.an(Error)
-        pool.end(function (err) {
-          done(err)
-        })
-      })
-    })
-
-    it('removes client if it errors in background', function (done) {
-      var pool = new Pool()
-      pool.connect(function (err, client, release) {
-        release()
-        if (err) return done(err)
-        client.testString = 'foo'
-        setTimeout(function () {
-          client.emit('error', new Error('on purpose'))
-        }, 10)
-      })
-      pool.on('error', function (err) {
-        expect(err.message).to.be('on purpose')
-        expect(err.client).to.not.be(undefined)
-        expect(err.client.testString).to.be('foo')
-        err.client.connection.stream.on('end', function () {
-          pool.end(done)
-        })
-      })
-    })
-
-    it('should not change given options', function (done) {
-      var options = { max: 10 }
-      var pool = new Pool(options)
-      pool.connect(function (err, client, release) {
-        release()
-        if (err) return done(err)
-        expect(options).to.eql({ max: 10 })
-        pool.end(done)
-      })
-    })
-
-    it('does not create promises when connecting', function (done) {
-      var pool = new Pool()
-      var returnValue = pool.connect(function (err, client, release) {
-        release()
-        if (err) return done(err)
-        pool.end(done)
-      })
-      expect(returnValue).to.be(undefined)
-    })
-
-    it('does not create promises when querying', function (done) {
-      var pool = new Pool()
-      var returnValue = pool.query('SELECT 1 as num', function (err) {
-        pool.end(function () {
-          done(err)
-        })
-      })
-      expect(returnValue).to.be(undefined)
-    })
-
-    it('does not create promises when ending', function (done) {
-      var pool = new Pool()
-      var returnValue = pool.end(done)
-      expect(returnValue).to.be(undefined)
+  it('fetch 6 when asking for 10', function(done) {
+    var cursor = this.pgCursor(text)
+    cursor.read(10, function(err, res) {
+      assert.ifError(err)
+      assert.equal(res.length, 6)
+      done()
     })
   })
 
-  describe('with promises', function () {
-    it('connects and disconnects', function () {
-      var pool = new Pool()
-      return pool.connect().then(function (client) {
-        expect(pool.pool.availableObjectsCount()).to.be(0)
-        return client.query('select $1::text as name', ['hi']).then(function (res) {
-          expect(res.rows).to.eql([{ name: 'hi' }])
-          client.release()
-          expect(pool.pool.getPoolSize()).to.be(1)
-          expect(pool.pool.availableObjectsCount()).to.be(1)
-          return pool.end()
-        })
-      })
+  it('end before reading to end', function(done) {
+    var cursor = this.pgCursor(text)
+    cursor.read(3, function(err, res) {
+      assert.ifError(err)
+      assert.equal(res.length, 3)
+      cursor.end(done)
     })
+  })
 
-    it('properly pools clients', function () {
-      var pool = new Pool({ poolSize: 9 })
-      return Promise.map(_.times(30), function () {
-        return pool.connect().then(function (client) {
-          return client.query('select $1::text as name', ['hi']).then(function (res) {
-            client.release()
-            return res
+  it('callback with error', function(done) {
+    var cursor = this.pgCursor('select asdfasdf')
+    cursor.read(1, function(err) {
+      assert(err)
+      done()
+    })
+  })
+
+
+  it('read a partial chunk of data', function(done) {
+    var cursor = this.pgCursor(text)
+    cursor.read(2, function(err, res) {
+      assert.ifError(err)
+      assert.equal(res.length, 2)
+      cursor.read(3, function(err, res) {
+        assert.equal(res.length, 3)
+        cursor.read(1, function(err, res) {
+          assert.equal(res.length, 1)
+          cursor.read(1, function(err, res) {
+            assert.ifError(err)
+            assert.strictEqual(res.length, 0)
+            done()
           })
         })
-      }).then(function (res) {
-        expect(res).to.have.length(30)
-        expect(pool.pool.getPoolSize()).to.be(9)
-        return pool.end()
       })
     })
+  })
 
-    it('supports just running queries', function () {
-      var pool = new Pool({ poolSize: 9 })
-      return Promise.map(_.times(30), function () {
-        return pool.query('SELECT $1::text as name', ['hi'])
-      }).then(function (queries) {
-        expect(queries).to.have.length(30)
-        expect(pool.pool.getPoolSize()).to.be(9)
-        expect(pool.pool.availableObjectsCount()).to.be(9)
-        return pool.end()
-      })
-    })
-
-    it('recovers from all errors', function () {
-      var pool = new Pool()
-
-      var errors = []
-      return Promise.mapSeries(_.times(30), function () {
-        return pool.query('SELECT asldkfjasldkf')
-          .catch(function (e) {
-            errors.push(e)
-          })
-      }).then(function () {
-        return pool.query('SELECT $1::text as name', ['hi']).then(function (res) {
-          expect(errors).to.have.length(30)
-          expect(res.rows).to.eql([{ name: 'hi' }])
-          return pool.end()
+  it('read return length 0 past the end', function(done) {
+    var cursor = this.pgCursor(text)
+    cursor.read(2, function(err, res) {
+      cursor.read(100, function(err, res) {
+        assert.equal(res.length, 4)
+        cursor.read(100, function(err, res) {
+          assert.equal(res.length, 0)
+          done()
         })
       })
     })
   })
-})
 
-process.on('unhandledRejection', function (e) {
-  console.error(e.message, e.stack)
-  setImmediate(function () {
-    throw e
+  it('read huge result', function(done) {
+    this.timeout(10000)
+    var text = 'SELECT generate_series as num FROM generate_series(0, 100000)'
+    var values = []
+    var cursor = this.pgCursor(text, values);
+    var count = 0;
+    var read = function() {
+      cursor.read(100, function(err, rows) {
+        if(err) return done(err);
+        if(!rows.length) {
+          assert.equal(count, 100001)
+          return done()
+        }
+        count += rows.length;
+        if(count%10000 == 0) {
+          //console.log(count)
+        }
+        setImmediate(read)
+      })
+    }
+    read()
+  })
+
+  it('normalizes parameter values', function(done) {
+    var text = 'SELECT $1::json me'
+    var values = [{name: 'brian'}]
+    var cursor = this.pgCursor(text, values);
+    cursor.read(1, function(err, rows) {
+      if(err) return done(err);
+      assert.equal(rows[0].me.name, 'brian')
+      cursor.read(1, function(err, rows) {
+        assert.equal(rows.length, 0)
+        done()
+      })
+    })
   })
 })
