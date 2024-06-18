@@ -1,181 +1,309 @@
 'use strict'
-const Result = require('pg/lib/result.js')
-const prepare = require('pg/lib/utils.js').prepareValue
 const EventEmitter = require('events').EventEmitter
-const util = require('util')
 
-function Cursor (text, values, config) {
-  EventEmitter.call(this)
+const NOOP = function () { }
 
-  this._conf = config || { }
-  this.text = text
-  this.values = values ? values.map(prepare) : null
-  this.connection = null
-  this._queue = []
-  this.state = 'initialized'
-  this._result = new Result(this._conf.rowMode)
-  this._cb = null
-  this._rows = null
+const remove = (list, value) => {
+  const i = list.indexOf(value)
+
+  if (i !== -1) {
+    list.splice(i, 1)
+  }
 }
 
-util.inherits(Cursor, EventEmitter)
+const removeWhere = (list, predicate) => {
+  const i = list.findIndex(predicate)
 
-Cursor.prototype.submit = function (connection) {
-  this.connection = connection
+  return i === -1
+    ? undefined
+    : list.splice(i, 1)[0]
+}
 
-  const con = connection
+class IdleItem {
+  constructor (client, timeoutId) {
+    this.client = client
+    this.timeoutId = timeoutId
+  }
+}
 
-  con.parse({
-    text: this.text
-  }, true)
+function throwOnRelease () {
+  throw new Error('Release called on client which has already been released to the pool.')
+}
 
-  con.bind({
-    values: this.values
-  }, true)
-
-  con.describe({
-    type: 'P',
-    name: '' // use unamed portal
-  }, true)
-
-  con.flush()
-
-  const ifNoData = () => {
-    this.state = 'idle'
-    this._shiftQueue()
+function release (client, err) {
+  client.release = throwOnRelease
+  if (err || this.ending) {
+    this._remove(client)
+    this._pulseQueue()
+    return
   }
 
-  if (this._conf.types) {
-    this._result._getTypeParser = this._conf.types.getTypeParser
+  // idle timeout
+  let tid
+  if (this.options.idleTimeoutMillis) {
+    tid = setTimeout(() => {
+      this.log('remove idle client')
+      this._remove(client)
+    }, this.options.idleTimeoutMillis)
   }
 
-  con.once('noData', ifNoData)
-  con.once('rowDescription', () => {
-    con.removeListener('noData', ifNoData)
+  this._idle.push(new IdleItem(client, tid))
+  this._pulseQueue()
+}
+
+function promisify (Promise, callback) {
+  if (callback) {
+    return { callback: callback, result: undefined }
+  }
+  let rej
+  let res
+  const cb = function (err, client) {
+    err ? rej(err) : res(client)
+  }
+  const result = new Promise(function (resolve, reject) {
+    res = resolve
+    rej = reject
   })
+  return { callback: cb, result: result }
 }
 
-Cursor.prototype._shiftQueue = function () {
-  if (this._queue.length) {
-    this._getRows.apply(this, this._queue.shift())
-  }
-}
+class Pool extends EventEmitter {
+  constructor (options, Client) {
+    super()
+    this.options = Object.assign({}, options)
+    this.options.max = this.options.max || this.options.poolSize || 10
+    this.log = this.options.log || function () { }
+    this.Client = this.options.Client || Client || require('pg').Client
+    this.Promise = this.options.Promise || global.Promise
 
-Cursor.prototype.handleRowDescription = function (msg) {
-  this._result.addFields(msg.fields)
-  this.state = 'idle'
-  this._shiftQueue()
-}
-
-Cursor.prototype.handleDataRow = function (msg) {
-  const row = this._result.parseRow(msg.fields)
-  this.emit('row', row, this._result)
-  this._rows.push(row)
-}
-
-Cursor.prototype._sendRows = function () {
-  this.state = 'idle'
-  setImmediate(() => {
-    const cb = this._cb
-    // remove callback before calling it
-    // because likely a new one will be added
-    // within the call to this callback
-    this._cb = null
-    if (cb) {
-      this._result.rows = this._rows
-      cb(null, this._rows, this._result)
+    if (typeof this.options.idleTimeoutMillis === 'undefined') {
+      this.options.idleTimeoutMillis = 10000
     }
-    this._rows = []
-  })
-}
 
-Cursor.prototype.handleCommandComplete = function () {
-  this.connection.sync()
-}
-
-Cursor.prototype.handlePortalSuspended = function () {
-  this._sendRows()
-}
-
-Cursor.prototype.handleReadyForQuery = function () {
-  this._sendRows()
-  this.emit('end', this._result)
-  this.state = 'done'
-}
-
-Cursor.prototype.handleEmptyQuery = function () {
-  this.connection.sync()
-}
-
-Cursor.prototype.handleError = function (msg) {
-  this.state = 'error'
-  this._error = msg
-  // satisfy any waiting callback
-  if (this._cb) {
-    this._cb(msg)
-  }
-  // dispatch error to all waiting callbacks
-  for (var i = 0; i < this._queue.length; i++) {
-    this._queue.pop()[1](msg)
+    this._clients = []
+    this._idle = []
+    this._pendingQueue = []
+    this._endCallback = undefined
+    this.ending = false
   }
 
-  if (this.listenerCount('error') > 0) {
-    // only dispatch error events if we have a listener
-    this.emit('error', msg)
+  _isFull () {
+    return this._clients.length >= this.options.max
   }
-  // call sync to keep this connection from hanging
-  this.connection.sync()
-}
 
-Cursor.prototype._getRows = function (rows, cb) {
-  this.state = 'busy'
-  this._cb = cb
-  this._rows = []
-  const msg = {
-    portal: '',
-    rows: rows
+  _pulseQueue () {
+    this.log('pulse queue')
+    if (this.ending) {
+      this.log('pulse queue on ending')
+      if (this._idle.length) {
+        this._idle.slice().map(item => {
+          this._remove(item.client)
+        })
+      }
+      if (!this._clients.length) {
+        this._endCallback()
+      }
+      return
+    }
+    // if we don't have any waiting, do nothing
+    if (!this._pendingQueue.length) {
+      this.log('no queued requests')
+      return
+    }
+    // if we don't have any idle clients and we have no more room do nothing
+    if (!this._idle.length && this._isFull()) {
+      return
+    }
+    const waiter = this._pendingQueue.shift()
+    if (this._idle.length) {
+      const idleItem = this._idle.pop()
+      clearTimeout(idleItem.timeoutId)
+      const client = idleItem.client
+      client.release = release.bind(this, client)
+      this.emit('acquire', client)
+      return waiter(undefined, client, client.release)
+    }
+    if (!this._isFull()) {
+      return this.connect(waiter)
+    }
+    throw new Error('unexpected condition')
   }
-  this.connection.execute(msg, true)
-  this.connection.flush()
-}
 
-Cursor.prototype.end = function (cb) {
-  if (this.state !== 'initialized') {
-    this.connection.sync()
-  }
-  this.connection.stream.once('end', cb)
-  this.connection.end()
-}
+  _remove (client) {
+    const removed = removeWhere(
+      this._idle,
+      item => item.client === client
+    )
 
-Cursor.prototype.close = function (cb) {
-  if (this.state === 'done') {
-    return setImmediate(cb)
+    if (removed !== undefined) {
+      clearTimeout(removed.timeoutId)
+    }
+
+    this._clients = this._clients.filter(c => c !== client)
+    client.end()
+    this.emit('remove', client)
   }
-  this.connection.close({type: 'P'})
-  this.connection.sync()
-  this.state = 'done'
-  if (cb) {
-    this.connection.once('closeComplete', function () {
-      cb()
+
+  connect (cb) {
+    if (this.ending) {
+      const err = new Error('Cannot use a pool after calling end on the pool')
+      return cb ? cb(err) : this.Promise.reject(err)
+    }
+
+    // if we don't have to connect a new client, don't do so
+    if (this._clients.length >= this.options.max || this._idle.length) {
+      const response = promisify(this.Promise, cb)
+      const result = response.result
+
+      // if we have idle clients schedule a pulse immediately
+      if (this._idle.length) {
+        process.nextTick(() => this._pulseQueue())
+      }
+
+      if (!this.options.connectionTimeoutMillis) {
+        this._pendingQueue.push(response.callback)
+        return result
+      }
+
+      const queueCallback = (err, res, done) => {
+        clearTimeout(tid)
+        response.callback(err, res, done)
+      }
+
+      // set connection timeout on checking out an existing client
+      const tid = setTimeout(() => {
+        // remove the callback from pending waiters because
+        // we're going to call it with a timeout error
+        remove(this._pendingQueue, queueCallback)
+        response.callback(new Error('timeout exceeded when trying to connect'))
+      }, this.options.connectionTimeoutMillis)
+
+      this._pendingQueue.push(queueCallback)
+      return result
+    }
+
+    const client = new this.Client(this.options)
+    this._clients.push(client)
+    const idleListener = (err) => {
+      err.client = client
+      client.removeListener('error', idleListener)
+      client.on('error', () => {
+        this.log('additional client error after disconnection due to error', err)
+      })
+      this._remove(client)
+      // TODO - document that once the pool emits an error
+      // the client has already been closed & purged and is unusable
+      this.emit('error', err, client)
+    }
+
+    this.log('checking client timeout')
+
+    // connection timeout logic
+    let tid
+    let timeoutHit = false
+    if (this.options.connectionTimeoutMillis) {
+      tid = setTimeout(() => {
+        this.log('ending client due to timeout')
+        timeoutHit = true
+        // force kill the node driver, and let libpq do its teardown
+        client.connection ? client.connection.stream.destroy() : client.end()
+      }, this.options.connectionTimeoutMillis)
+    }
+
+    const response = promisify(this.Promise, cb)
+    cb = response.callback
+
+    this.log('connecting new client')
+    client.connect((err) => {
+      if (tid) {
+        clearTimeout(tid)
+      }
+      client.on('error', idleListener)
+      if (err) {
+        this.log('client failed to connect', err)
+        // remove the dead client from our list of clients
+        this._clients = this._clients.filter(c => c !== client)
+        if (timeoutHit) {
+          err.message = 'Connection terminated due to connection timeout'
+        }
+
+        // this client won’t be released, so move on immediately
+        this._pulseQueue()
+
+        cb(err, undefined, NOOP)
+      } else {
+        this.log('new client connected')
+        client.release = release.bind(this, client)
+        this.emit('connect', client)
+        this.emit('acquire', client)
+        if (this.options.verify) {
+          this.options.verify(client, cb)
+        } else {
+          cb(undefined, client, client.release)
+        }
+      }
     })
+    return response.result
+  }
+
+  query (text, values, cb) {
+    // guard clause against passing a function as the first parameter
+    if (typeof text === 'function') {
+      const response = promisify(this.Promise, text)
+      setImmediate(function () {
+        return response.callback(new Error('Passing a function as the first parameter to pool.query is not supported'))
+      })
+      return response.result
+    }
+
+    // allow plain text query without values
+    if (typeof values === 'function') {
+      cb = values
+      values = undefined
+    }
+    const response = promisify(this.Promise, cb)
+    cb = response.callback
+    this.connect((err, client) => {
+      if (err) {
+        return cb(err)
+      }
+      this.log('dispatching query')
+      client.query(text, values, (err, res) => {
+        this.log('query dispatched')
+        client.release(err)
+        if (err) {
+          return cb(err)
+        } else {
+          return cb(undefined, res)
+        }
+      })
+    })
+    return response.result
+  }
+
+  end (cb) {
+    this.log('ending')
+    if (this.ending) {
+      const err = new Error('Called end on pool more than once')
+      return cb ? cb(err) : this.Promise.reject(err)
+    }
+    this.ending = true
+    const promised = promisify(this.Promise, cb)
+    this._endCallback = promised.callback
+    this._pulseQueue()
+    return promised.result
+  }
+
+  get waitingCount () {
+    return this._pendingQueue.length
+  }
+
+  get idleCount () {
+    return this._idle.length
+  }
+
+  get totalCount () {
+    return this._clients.length
   }
 }
-
-Cursor.prototype.read = function (rows, cb) {
-  if (this.state === 'idle') {
-    return this._getRows(rows, cb)
-  }
-  if (this.state === 'busy' || this.state === 'initialized') {
-    return this._queue.push([rows, cb])
-  }
-  if (this.state === 'error') {
-    return setImmediate(() => cb(this._error))
-  }
-  if (this.state === 'done') {
-    return setImmediate(() => cb(null, []))
-  } else {
-    throw new Error('Unknown state: ' + this.state)
-  }
-}
-
-module.exports = Cursor
+module.exports = Pool
