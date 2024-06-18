@@ -34,8 +34,6 @@ var useSsl = function () {
     case 'verify-ca':
     case 'verify-full':
       return true
-    case 'no-verify':
-      return { rejectUnauthorized: false }
   }
   return defaults.ssl
 }
