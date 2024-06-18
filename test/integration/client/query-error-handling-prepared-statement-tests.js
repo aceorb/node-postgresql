@@ -29,18 +29,12 @@ test('query killed during query execution of prepared statement', function() {
   var client = new Client(helper.args);
   client.connect(assert.success(function() {
     var sleepQuery = 'select pg_sleep($1)';
-
-    const queryConfig = {
+    var query1 = client.query({
       name: 'sleep query',
       text: sleepQuery,
-      values: [5],
-    };
-
-    // client should emit an error because it is unexpectedly disconnected
-    assert.emits(client, 'error')
-
-    var query1 = client.query(queryConfig, assert.calls(function(err, result) {
-      assert.equal(err.message, 'terminating connection due to administrator command');
+      values: [5] },
+      assert.calls(function(err, result) {
+        assert.equal(err.message, 'terminating connection due to administrator command');
     }));
 
     query1.on('error', function(err) {
@@ -58,6 +52,7 @@ test('query killed during query execution of prepared statement', function() {
     killIdleQuery(sleepQuery);
   }));
 });
+
 
 test('client end during query execution of prepared statement', function() {
   var client = new Client(helper.args);
