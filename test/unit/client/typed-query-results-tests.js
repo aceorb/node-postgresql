@@ -43,19 +43,19 @@ test('typed results', function() {
     format: 'text',
     dataTypeID: 1700,
     actual: '12.34',
-    expected: '12.34'
+    expected: 12.34
   },{
     name: 'real/float4',
     dataTypeID: 700,
     format: 'text',
     actual: '123.456',
-    expected: '123.456'
+    expected: 123.456
   },{
     name: 'double precision / float8',
     format: 'text',
     dataTypeID: 701,
     actual: '1.2',
-    expected: '1.2'
+    expected: 1.2
   },{
     name: 'boolean true',
     format: 'text',
@@ -188,6 +188,14 @@ test('typed results', function() {
     actual: '{"hello world"}',
     expected :function(val){
       assert.deepEqual(val, ['hello world']);
+    }
+  },{
+    name : 'array/numeric',
+    format : 'text',
+    dataTypeID: 1231,
+    actual: '{1.2,3.4}',
+    expected :function(val){
+      assert.deepEqual(val, [1.2,3.4]);
     }
   },
 
