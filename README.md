@@ -1,88 +1,102 @@
-# node-postgres
+node-pg-cursor
+==============
 
-[![Build Status](https://secure.travis-ci.org/brianc/node-postgres.svg?branch=master)](http://travis-ci.org/brianc/node-postgres)
-[![Dependency Status](https://david-dm.org/brianc/node-postgres.svg)](https://david-dm.org/brianc/node-postgres)
-<span class="badge-npmversion"><a href="https://npmjs.org/package/pg" title="View this project on NPM"><img src="https://img.shields.io/npm/v/pg.svg" alt="NPM version" /></a></span>
-<span class="badge-npmdownloads"><a href="https://npmjs.org/package/pg" title="View this project on NPM"><img src="https://img.shields.io/npm/dm/pg.svg" alt="NPM downloads" /></a></span>
+Use a PostgreSQL result cursor from node with an easy to use API.
 
-Non-blocking PostgreSQL client for node.js.  Pure JavaScript and optional native libpq bindings.
+### why?
 
-## Install
+Sometimes you need to iterate through a table in chunks.  It's extremely inefficient to use hand-crafted `LIMIT` and `OFFSET` queries to do this.
+PostgreSQL provides built-in functionality to fetch a "cursor" to your results and page through the cursor efficiently fetching chunks of the results with full MVCC compliance.  
 
-```sh
-$ npm install pg
+This actually ends up pairing very nicely with node's _asyncness_ and handling a lot of data.  PostgreSQL is rad.
+
+### example
+
+```js
+var Cursor = require('pg-cursor')
+var pg = require('pg')
+
+pg.connect(function(err, client, done) {
+
+  //imagine some_table has 30,000,000 results where prop > 100
+  //lets create a query cursor to efficiently deal with the huge result set
+  var cursor = client.query(new Cursor('SELECT * FROM some_table WHERE prop > $1', [100]))
+  
+  //read the first 100 rows from this cursor
+  cursor.read(100, function(err, rows) {
+    if(err) {
+      //cursor error - release the client
+      //normally you'd do app-specific error handling here
+      return done(err)
+    }
+    
+    //when the cursor is exhausted and all rows have been returned
+    //all future calls to `cursor#read` will return an empty row array
+    //so if we received no rows, release the client and be done
+    if(!rows.length) return done()
+    
+    //do something with your rows
+    //when you're ready, read another chunk from
+    //your result
+    
+    
+    cursor.read(2000, function(err, rows) {
+      //I think you get the picture, yeah?
+      //if you dont...open an issue - I'd love to help you out!
+      
+      //Also - you probably want to use some sort of async or promise library to deal with paging
+      //through your cursor results.  node-pg-cursor makes no asumptions for you on that front.
+    })
+  })
+});
 ```
 
----
-## :star: [Documentation](https://node-postgres.com) :star:
+### api
+
+#### var Cursor = require('pg-cursor')
+
+#### constructor Cursor(string queryText, array queryParameters)
+
+Creates an instance of a query cursor.  Pass this instance to node-postgres [`client#query`](https://github.com/brianc/node-postgres/wiki/Client#wiki-method-query-parameterized)
+
+#### cursor#read(int rowCount, function callback(Error err, Array rows)
+
+Read `rowCount` rows from the cursor instance.  The `callback` will be called when the rows are available, loaded into memory, parsed, and converted to JavaScript types.
+
+If the cursor has read to the end of the result sets all subsequent calls to `cursor#read` will return a 0 length array of rows.  I'm open to other ways to signal the end of a cursor, but this has worked out well for me so far.
 
 
-### Features
+#### cursor#close(function callback(Error err))
 
-* pure JavaScript client and native libpq bindings share _the same api_
-* connection pooling
-* extensible js<->postgresql data-type coercion
-* supported PostgreSQL features
-  * parameterized queries
-  * named statements with query plan caching
-  * async notifications with `LISTEN/NOTIFY`
-  * bulk import & export with `COPY TO/COPY FROM`
+Closes the backend portal before itterating through the entire result set.  Useful when you want to 'abort' out of a read early but continue to use the same client for other queries after the cursor is finished.
 
-### Extras
+### install
 
-node-postgres is by design pretty light on abstractions.  These are some handy modules we've been using over the years to complete the picture.
-Entire list can be found on [wiki](https://github.com/brianc/node-postgres/wiki/Extras)
+```sh
+$ npm install pg-cursor
+```
+___note___: this depends on _either_ `npm install pg` or `npm install pg.js`, but you __must__ be using the pure JavaScript client.  This will __not work__ with the native bindings.
 
-## Support
+### license
 
-node-postgres is free software.  If you encounter a bug with the library please open an issue on the [github repo](https://github.com/brianc/node-postgres). If you have questions unanswered by the documentation please open an issue pointing out how the documentation was unclear & I will do my best to make it better!
+The MIT License (MIT)
 
-When you open an issue please provide:
-- version of node
-- version of postgres
-- smallest possible snippet of code to reproduce the problem
+Copyright (c) 2013 Brian M. Carlson
 
-You can also follow me [@briancarlson](https://twitter.com/briancarlson) if that's your thing. I try to always announce noteworthy changes & developments with node-postgres on twitter.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-### Professional Support
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
-I offer professional support for node-postgres.  I provide implementation, training, and many years of expertise on how to build applications with node, express, PostgreSQL, and react/redux.  Please contact me at [brian.m.carlson@gmail.com](mailto:brian.m.carlson@gmail.com) to discuss how I can help your company be more successful!
-
-### Sponsorship :star:
-
-If you are benefiting from node-postgres and would like to help keep the project financially sustainable please visit Brian Carlson's [Patreon page](https://www.patreon.com/node_postgres).
-
-## Contributing
-
-__:heart: contributions!__
-
-I will __happily__ accept your pull request if it:
-- __has tests__
-- looks reasonable
-- does not break backwards compatibility
-
-## Troubleshooting and FAQ
-
-The causes and solutions to common errors can be found among the [Frequently Asked Questions(FAQ)](https://github.com/brianc/node-postgres/wiki/FAQ)
-
-## License
-
-Copyright (c) 2010-2017 Brian Carlson (brian.m.carlson@gmail.com)
-
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
-
- The above copyright notice and this permission notice shall be included in
- all copies or substantial portions of the Software.
-
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
