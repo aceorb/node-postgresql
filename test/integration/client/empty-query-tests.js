@@ -2,10 +2,9 @@ var helper = require(__dirname+'/test-helper');
 var client = helper.client();
 
 test("empty query message handling", function() {
-  assert.emits(client, 'drain', function() {
-    client.end();
-  });
-  client.query("");
+  var query = client.query("");
+  assert.emits(query, 'end');
+  client.on('drain', client.end.bind(client));
 });
 
 test('callback supported', assert.calls(function() {
