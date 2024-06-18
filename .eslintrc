@@ -1,14 +1,9 @@
 {
-  "extends": ["eslint:recommended"],
-  "plugins": ["prettier"],
-  "rules": {
-    "prettier/prettier": "error",
-    "prefer-const": "error",
-    "no-var": "error"
-  },
+  "extends": "standard",
   "env": {
-    "es6": true,
-    "node": true,
     "mocha": true
+  },
+  "rules": {
+    "no-new-func": "off"
   }
 }
