@@ -1,38 +1,50 @@
 {
-  "name": "pg-connection-string",
-  "version": "2.0.0",
-  "description": "Functions for dealing with a PostgresSQL connection string",
-  "main": "./index.js",
-  "types": "./index.d.ts",
-  "scripts": {
-    "test": "istanbul cover _mocha && npm run check-coverage",
-    "check-coverage": "istanbul check-coverage --statements 100 --branches 100 --lines 100 --functions 100",
-    "coveralls": "cat ./coverage/lcov.info | ./node_modules/.bin/coveralls"
-  },
+  "name": "pg",
+  "version": "7.10.0",
+  "description": "PostgreSQL client - pure javascript & libpq with the same API",
+  "keywords": [
+    "database",
+    "libpq",
+    "pg",
+    "postgre",
+    "postgres",
+    "postgresql",
+    "rdbms"
+  ],
+  "homepage": "http://github.com/brianc/node-postgres",
   "repository": {
     "type": "git",
-    "url": "https://github.com/iceddev/pg-connection-string"
+    "url": "git://github.com/brianc/node-postgres.git"
   },
-  "keywords": [
-    "pg",
-    "connection",
-    "string",
-    "parse"
-  ],
-  "author": "Blaine Bublitz <blaine@iceddev.com> (http://iceddev.com/)",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/iceddev/pg-connection-string/issues"
+  "author": "Brian Carlson <brian.m.carlson@gmail.com>",
+  "main": "./lib",
+  "dependencies": {
+    "buffer-writer": "2.0.0",
+    "packet-reader": "1.0.0",
+    "pg-connection-string": "0.1.3",
+    "pg-pool": "^2.0.4",
+    "pg-types": "~2.0.0",
+    "pgpass": "1.x",
+    "semver": "4.3.2"
   },
-  "homepage": "https://github.com/iceddev/pg-connection-string",
-  "dependencies": {},
   "devDependencies": {
-    "chai": "^4.1.1",
-    "istanbul": "^0.4.5",
-    "mocha": "^3.5.0"
+    "async": "0.9.0",
+    "bluebird": "3.5.2",
+    "co": "4.6.0",
+    "eslint": "^4.19.1",
+    "eslint-config-standard": "^11.0.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-node": "^6.0.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^3.1.0",
+    "pg-copy-streams": "0.3.0"
   },
-  "files": [
-    "index.js",
-    "index.d.ts"
-  ]
+  "minNativeVersion": "2.0.0",
+  "scripts": {
+    "test": "make test-all"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">= 4.5.0"
+  }
 }
