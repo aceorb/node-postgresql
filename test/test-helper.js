@@ -133,10 +133,9 @@ assert.lengthIs = function(actual, expectedLength) {
 
 var expect = function(callback, timeout) {
   var executed = false;
-  timeout = timeout || 5000;
   var id = setTimeout(function() {
-    assert.ok(executed, "Expected execution of function to be fired within " + timeout + ' milliseconds');
-  }, timeout)
+    assert.ok(executed, "Expected execution of function to be fired");
+  }, timeout || 5000)
 
   if(callback.length < 3) {
     return function(err, queryResult) {
