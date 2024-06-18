@@ -1,119 +1,163 @@
-var genericPool = require('generic-pool')
-var util = require('util')
-var EventEmitter = require('events').EventEmitter
-var objectAssign = require('object-assign')
+var Result = require('./pg').Result
+var prepare = require('./pg').prepareValue
 
-var Pool = module.exports = function (options, Client) {
-  EventEmitter.call(this)
-  this.options = objectAssign({}, options)
-  this.log = this.options.log || function () { }
-  this.Client = this.options.Client || Client || require('pg').Client
-  this.Promise = this.options.Promise || Promise
-
-  this.options.max = this.options.max || this.options.poolSize || 10
-  this.options.create = this.options.create || this._create.bind(this)
-  this.options.destroy = this.options.destroy || this._destroy.bind(this)
-  this.pool = new genericPool.Pool(this.options)
-  this.onCreate = this.options.onCreate
+var Cursor = function(text, values) {
+  this.text = text
+  this.values = values ? values.map(prepare) : null
+  this.connection = null
+  this._queue = []
+  this.state = 'initialized'
+  this._result = new Result()
+  this._cb = null
+  this._rows = null
 }
 
-util.inherits(Pool, EventEmitter)
+Cursor.prototype.submit = function(connection) {
+  this.connection = connection
 
-Pool.prototype._destroy = function (client) {
-  if (client._destroying) return
-  client._destroying = true
-  client.end()
-}
+  var con = connection
+  var self = this
 
-Pool.prototype._create = function (cb) {
-  this.log('connecting new client')
-  var client = new this.Client(this.options)
+  con.parse({
+    text: this.text
+  }, true)
 
-  client.on('error', function (e) {
-    this.log('connected client error:', e)
-    this.pool.destroy(client)
-    e.client = client
-    this.emit('error', e)
-  }.bind(this))
+  con.bind({
+    values: this.values
+  }, true)
 
-  client.connect(function (err) {
-    this.log('client connected')
-    this.emit('connect', client)
-    if (err) {
-      this.log('client connection error:', err)
-      cb(err)
-    }
-    cb(err, err ? null : client)
-  }.bind(this))
-}
+  con.describe({
+    type: 'P',
+    name: '' //use unamed portal
+  }, true)
 
-Pool.prototype.connect = function (cb) {
-  return new this.Promise(function (resolve, reject) {
-    this.log('acquire client begin')
-    this.pool.acquire(function (err, client) {
-      if (err) {
-        this.log('acquire client. error:', err)
-        if (cb) {
-          cb(err, null, function () {})
-        }
-        return reject(err)
-      }
+  con.flush()
 
-      this.log('acquire client')
-      this.emit('acquire', client)
+  con.once('noData', ifNoData)
+  con.once('rowDescription', function () {
+    con.removeListener('noData', ifNoData);
+  });
 
-      client.release = function (err) {
-        delete client.release
-        if (err) {
-          this.log('destroy client. error:', err)
-          this.pool.destroy(client)
-        } else {
-          this.log('release client')
-          this.pool.release(client)
-        }
-      }.bind(this)
-
-      if (cb) {
-        cb(null, client, client.release)
-      }
-
-      return resolve(client)
-    }.bind(this))
-  }.bind(this))
-}
-
-Pool.prototype.take = Pool.prototype.connect
-
-Pool.prototype.query = function (text, values, cb) {
-  if (typeof values === 'function') {
-    cb = values
-    values = undefined
+  function ifNoData () {
+    self.state = 'idle'
+    self._shiftQueue();
   }
-  return new this.Promise(function (resolve, reject) {
-    this.connect(function (err, client, done) {
-      if (err) return reject(err)
-      client.query(text, values, function (err, res) {
-        done(err)
-        err ? reject(err) : resolve(res)
-        if (cb) {
-          cb(err, res)
-        }
-      })
-    })
+}
+
+Cursor.prototype._shiftQueue = function () {
+  if(this._queue.length) {
+    this._getRows.apply(this, this._queue.shift())
+  }
+}
+
+Cursor.prototype.handleRowDescription = function(msg) {
+  this._result.addFields(msg.fields)
+  this.state = 'idle'
+  this._shiftQueue();
+}
+
+Cursor.prototype.handleDataRow = function(msg) {
+  var row = this._result.parseRow(msg.fields)
+  this._rows.push(row)
+}
+
+Cursor.prototype._sendRows = function() {
+  this.state = 'idle'
+  setImmediate(function() {
+    var cb = this._cb
+    //remove callback before calling it
+    //because likely a new one will be added
+    //within the call to this callback
+    this._cb = null
+    if(cb) {
+      cb(null, this._rows)
+    }
+    this._rows = []
   }.bind(this))
 }
 
-Pool.prototype.end = function (cb) {
-  this.log('draining pool')
-  return new this.Promise(function (resolve, reject) {
-    this.pool.drain(function () {
-      this.log('pool drained, calling destroy all now')
-      this.pool.destroyAllNow(function () {
-        if (cb) {
-          cb()
-        }
-        resolve()
-      })
-    }.bind(this))
-  }.bind(this))
+Cursor.prototype.handleCommandComplete = function() {
+  this.connection.sync()
 }
+
+Cursor.prototype.handlePortalSuspended = function() {
+  this._sendRows()
+}
+
+Cursor.prototype.handleReadyForQuery = function() {
+  this._sendRows()
+  this.state = 'done'
+}
+
+Cursor.prototype.handleEmptyQuery = function(con) {
+  if (con.sync) {
+    con.sync()
+  }
+};
+
+Cursor.prototype.handleError = function(msg) {
+  this.state = 'error'
+  this._error = msg
+  //satisfy any waiting callback
+  if(this._cb) {
+    this._cb(msg)
+  }
+  //dispatch error to all waiting callbacks
+  for(var i = 0; i < this._queue.length; i++) {
+    this._queue.pop()[1](msg)
+  }
+  //call sync to keep this connection from hanging
+  this.connection.sync()
+}
+
+Cursor.prototype._getRows = function(rows, cb) {
+  this.state = 'busy'
+  this._cb = cb
+  this._rows = []
+  var msg = {
+    portal: '',
+    rows: rows
+  }
+  this.connection.execute(msg, true)
+  this.connection.flush()
+}
+
+Cursor.prototype.end = function(cb) {
+  if(this.state != 'initialized') {
+    this.connection.sync()
+  }
+  this.connection.end()
+  this.connection.stream.once('end', cb)
+}
+
+Cursor.prototype.close = function(cb) {
+  this.connection.close({type: 'P'})
+  this.connection.sync()
+  this.state = 'done'
+  if(cb) {
+    this.connection.once('closeComplete', function() {
+      cb()
+    })
+  }
+}
+
+Cursor.prototype.read = function(rows, cb) {
+  var self = this
+  if(this.state == 'idle') {
+    return this._getRows(rows, cb)
+  }
+  if(this.state == 'busy' || this.state == 'initialized') {
+    return this._queue.push([rows, cb])
+  }
+  if(this.state == 'error') {
+    return cb(this._error)
+  }
+  if(this.state == 'done') {
+    return cb(null, [])
+  }
+  else {
+    throw new Error("Unknown state: " + this.state)
+  }
+}
+
+module.exports = Cursor

@@ -1,4 +1,4 @@
-.PHONY: jshint test publish-patch test
+.PHONY: publish-patch test
 
 test:
 	npm test
