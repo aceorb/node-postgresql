@@ -1,227 +1,169 @@
-# pg-pool
-[![Build Status](https://travis-ci.org/brianc/node-pg-pool.svg?branch=master)](https://travis-ci.org/brianc/node-pg-pool)
+#node-postgres
 
-A connection pool for node-postgres
+[![Build Status](https://secure.travis-ci.org/brianc/node-postgres.svg?branch=master)](http://travis-ci.org/brianc/node-postgres)
+[![Dependency Status](https://david-dm.org/brianc/node-postgres.svg)](https://david-dm.org/brianc/node-postgres)
 
-## install
+PostgreSQL client for node.js.  Pure JavaScript and optional native libpq bindings.
+
+## Install
+
 ```sh
-npm i pg-pool pg
+$ npm install pg
 ```
 
-## use
 
-### create
+## Examples
 
-to use pg-pool you must first create an instance of a pool
+### Client pooling
 
-```js
-const Pool = require('pg-pool')
+Generally you will access the PostgreSQL server through a pool of clients.  A client takes a non-trivial amount of time to establish a new connection. A client also consumes a non-trivial amount of resources on the PostgreSQL server - not something you want to do on every http request. Good news: node-postgres ships with built in client pooling.
 
-//by default the pool uses the same
-//configuration as whatever `pg` version you have installed
-const pool = new Pool()
+```javascript
+var Pool = require('pg').Pool;
 
-//you can pass properties to the pool
-//these properties are passed unchanged to both the node-postgres Client constructor
-//and the node-pool (https://github.com/coopernurse/node-pool) constructor
-//allowing you to fully configure the behavior of both
-const pool2 = new Pool({
-  database: 'postgres',
-  user: 'brianc',
-  password: 'secret!',
-  port: 5432,
-  ssl: true,
-  max: 20, //set pool max size to 20
-  min: 4, //set min pool size to 4
-  idleTimeoutMillis: 1000 //close idle clients after 1 second
-})
+var config = {
+  user: 'foo',
+  password: 'secret',
+  database: 'my_db',
+  port: 5432
+};
 
-//you can supply a custom client constructor
-//if you want to use the native postgres client
-const NativeClient = require('pg').native.Client
-const nativePool = new Pool({ Client: NativeClient })
+var pool = new Pool(config);
 
-//you can even pool pg-native clients directly
-const PgNativeClient = require('pg-native')
-const pgNativePool = new Pool({ Client: PgNativeClient })
-```
-
-### acquire clients with a promise
-
-pg-pool supports a fully promise-based api for acquiring clients
-
-```js
-const pool = new Pool()
-pool.connect().then(client => {
-  client.query('select $1::text as name', ['pg-pool']).then(res => {
-    client.release()
-    console.log('hello from', res.rows[0].name)
-  })
-  .catch(e => {
-    client.release()
-    console.error('query error', e.message, e.stack)
-  })
-})
-```
-
-### plays nice with async/await
-
-this ends up looking much nicer if you're using [co](https://github.com/tj/co) or async/await:
-
-```js
-// with async/await
-(async () => {
-  const pool = new Pool()
-  const client = await pool.connect()
-  try {
-    const result = await client.query('select $1::text as name', ['brianc'])
-    console.log('hello from', result.rows[0])
-  } finally {
-    client.release()
+//this initializes a connection pool
+//it will keep idle connections open for a (configurable) 30 seconds
+//and set a limit of 10 (also configurable)
+pool.connect(function(err, client, done) {
+  if(err) {
+    return console.error('error fetching client from pool', err);
   }
-})().catch(e => console.error(e.message, e.stack))
+  client.query('SELECT $1::int AS number', ['1'], function(err, result) {
+    //call `done()` to release the client back to the pool
+    done();
 
-// with co
-co(function * () {
-  const client = yield pool.connect()
-  try {
-    const result = yield client.query('select $1::text as name', ['brianc'])
-    console.log('hello from', result.rows[0])
-  } finally {
-    client.release()
-  }
-}).catch(e => console.error(e.message, e.stack))
-```
-
-### your new favorite helper method
-
-because its so common to just run a query and return the client to the pool afterward pg-pool has this built-in:
-
-```js
-const pool = new Pool()
-const time = await pool.query('SELECT NOW()')
-const name = await pool.query('select $1::text as name', ['brianc'])
-console.log(name.rows[0].name, 'says hello at', time.rows[0].name)
-```
-
-__pro tip:__ unless you need to run a transaction (which requires a single client for multiple queries) or you
-have some other edge case like [streaming rows](https://github.com/brianc/node-pg-query-stream) or using a [cursor](https://github.com/brianc/node-pg-cursor)
-you should almost always just use `pool.query`.  Its easy, it does the right thing :tm:, and wont ever forget to return
-clients back to the pool after the query is done.
-
-### drop-in backwards compatible
-
-pg-pool still and will always support the traditional callback api for acquiring a client.  This is the exact API node-postgres has shipped with for years:
-
-```js
-const pool = new Pool()
-pool.connect((err, client, done) => {
-  if (err) return done(err)
-
-  client.query('SELECT $1::text as name', ['pg-pool'], (err, res) => {
-    done()
-    if (err) {
-      return console.error('query error', e.message, e.stack)
+    if(err) {
+      return console.error('error running query', err);
     }
-    console.log('hello from', res.rows[0].name)
-  })
-})
+    console.log(result.rows[0].number);
+    //output: 1
+  });
+});
 ```
 
-### shut it down
+node-postgres uses [pg-pool](https://github.com/brianc/node-pg-pool.git) to manage pooling and only provides a very thin layer on top.  
 
-When you are finished with the pool if all the clients are idle the pool will close them after `config.idleTimeoutMillis` and your app
-will shutdown gracefully.  If you don't want to wait for the timeout you can end the pool as follows:
+It's _highly recommend_ you read the documentation for [pg-pool](https://github.com/brianc/node-pg-pool.git)
 
-```js
-const pool = new Pool()
-const client = await pool.connect()
-console.log(await client.query('select now()'))
-client.release()
-await pool.end()
-```
 
-### events
+[Here is a tl;dr get up & running quickly example](https://github.com/brianc/node-postgres/wiki/Example)
 
-Every instance of a `Pool` is an event emitter.  These instances emit the following events:
+### Client instance
 
-#### error
+Sometimes you may not want to use a pool of connections.  You can easily connect a single client to a postgres instance, run some queries, and disconnect.
 
-Emitted whenever an idle client in the pool encounters an error.  This is common when your PostgreSQL server shuts down, reboots, or a network partition otherwise causes it to become unavailable while your pool has connected clients.
+```javascript
+var pg = require('pg');
 
-Example:
+var conString = "postgres://username:password@localhost/database";
 
-```js
-var pg = require('pg')
-var pool = new pg.Pool()
-
-// attach an error handler to the pool for when a connected, idle client
-// receives an error by being disconnected, etc
-pool.on('error', function(error, client) {
-  // handle this in the same way you would treat process.on('uncaughtException')
-  // it is supplied the error as well as the idle client which received the error
-})
-```
-
-#### connect
-
-Fired whenever the pool creates a __new__ `pg.Client` instance and successfully connects it to the backend.
-
-Example:
-
-```js
-var pg = require('pg')
-var pool = new pg.Pool()
-
-var count = 0
-
-pool.on('connect', client => {
-  client.count = count++
-})
-
-pool
-  .connect()
-  .then(client => {
-    return client
-      .query('SELECT $1::int AS "clientCount', [client.count])
-      .then(res => console.log(res.rows[0].clientCount)) // outputs 0
-      .then(() => client)
-  }))
-  .then(client => client.release())
+var client = new pg.Client(conString);
+client.connect(function(err) {
+  if(err) {
+    return console.error('could not connect to postgres', err);
+  }
+  client.query('SELECT NOW() AS "theTime"', function(err, result) {
+    if(err) {
+      return console.error('error running query', err);
+    }
+    console.log(result.rows[0].theTime);
+    //output: Tue Jan 15 2013 19:12:47 GMT-600 (CST)
+    client.end();
+  });
+});
 
 ```
 
-This allows you to do custom bootstrapping and manipulation of clients after they have been successfully connected to the PostgreSQL backend, but before any queries have been issued.
+## [More Documentation](https://github.com/brianc/node-postgres/wiki)
 
-### environment variables
+## Native Bindings
 
-pg-pool & node-postgres support some of the same environment variables as `psql` supports.  The most common are:
+To install the [native bindings](https://github.com/brianc/node-pg-native.git):
 
-```
-PGDATABASE=my_db
-PGUSER=username
-PGPASSWORD="my awesome password"
-PGPORT=5432
-PGSSLMODE=require
+```sh
+$ npm install pg pg-native
 ```
 
-Usually I will export these into my local environment via a `.env` file with environment settings or export them in `~/.bash_profile` or something similar.  This way I get configurability which works with both the postgres suite of tools (`psql`, `pg_dump`, `pg_restore`) and node, I can vary the environment variables locally and in production, and it supports the concept of a [12-factor app](http://12factor.net/) out of the box.
 
-## tests
+node-postgres contains a pure JavaScript protocol implementation which is quite fast, but you can optionally use native bindings for a 20-30% increase in parsing speed. Both versions are adequate for production workloads.
 
-To run tests clone the repo, `npm i` in the working dir, and then run `npm test`
+To use the native bindings, first install [pg-native](https://github.com/brianc/node-pg-native.git).  Once pg-native is installed, simply replace `require('pg')` with `require('pg').native`.
 
-## contributions
+node-postgres abstracts over the pg-native module to provide exactly the same interface as the pure JavaScript version. Care has been taken to keep the number of api differences between the two modules to a minimum; however, it is recommend you use either the pure JavaScript or native bindings in both development and production and don't mix & match them in the same process - it can get confusing!
 
-I love contributions.  Please make sure they have tests, and submit a PR.  If you're not sure if the issue is worth it or will be accepted it never hurts to open an issue to begin the conversation.  If you're interested in keeping up with node-postgres releated stuff, you can follow me on twitter at [@briancarlson](https://twitter.com/briancarlson) - I generally announce any noteworthy updates there.
+## Features
 
-## license
+* pure JavaScript client and native libpq bindings share _the same api_
+* optional connection pooling
+* extensible js<->postgresql data-type coercion
+* supported PostgreSQL features
+  * parameterized queries
+  * named statements with query plan caching
+  * async notifications with `LISTEN/NOTIFY`
+  * bulk import & export with `COPY TO/COPY FROM`
 
-The MIT License (MIT)
-Copyright (c) 2016 Brian M. Carlson
+## Contributing
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+__We love contributions!__
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+If you need help getting the tests running locally or have any questions about the code when working on a patch please feel free to email me or gchat me.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+I will __happily__ accept your pull request if it:
+- __has tests__
+- looks reasonable
+- does not break backwards compatibility
+
+Information about the testing processes is in the [wiki](https://github.com/brianc/node-postgres/wiki/Testing).
+
+Open source belongs to all of us, and we're all invited to participate!
+
+## Support
+
+If at all possible when you open an issue please provide
+- version of node
+- version of postgres
+- smallest possible snippet of code to reproduce the problem
+
+Usually I'll pop the code into the repo as a test.  Hopefully the test fails.  Then I make the test pass.  Then everyone's happy!
+
+If you need help or run into _any_ issues getting node-postgres to work on your system please report a bug or contact me directly.  I am usually available via google-talk at my github account public email address.
+
+I usually tweet about any important status updates or changes to node-postgres on twitter.
+Follow me [@briancarlson](https://twitter.com/briancarlson) to keep up to date.
+
+
+## Extras
+
+node-postgres is by design pretty light on abstractions.  These are some handy modules we've been using over the years to complete the picture.
+Entire list can be found on [wiki](https://github.com/brianc/node-postgres/wiki/Extras)
+
+## License
+
+Copyright (c) 2010-2016 Brian Carlson (brian.m.carlson@gmail.com)
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
