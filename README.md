@@ -13,36 +13,39 @@ with love and TDD.
 
     var pg = require('pg');
     
-    pg.connect('postgres://user:password@host:port/database', function(error, client) {
-      if(error) {
-        //handle error
-        return
+    pg.connect("pg://user:password@host:port/database", function(err, client) {
+      if(err) {
+        //handle connection error
       }
-      //simple query
-      client.query("CREATE TABLE users(name varchar(10), birthday timestamptz)")
-
-      //prepared statements with bound parameters
-      client.query("INSERT INTO users(name, birthday) VALUES($1, $2)" ['brianc', new Date(2010, 01, 01)])
-      client.query("INSERT INTO users(name, birthday) VALUES($1, $2)", ['ringo', new Date(2008, 01, 01)])
-      client.query("SELECT * FROM users WHERE birthday > $1", [new Date(2009, 01, 01)], function(error, result) {
-        if(error) {
-          //handle error
-          return
-        }
-        var user = result.rows[0]
-        console.log(user.name) //brianc
-        console.log(user.birthday.getYear()) //2010
-      })
-
-    })
-
-
+      else {
+        //queries are queued and executed in order
+        client.query("CREATE TEMP TABLE user(name varchar(50), birthday timestamptz)");
+        client.query("INSERT INTO user(name, birthday) VALUES('brianc', '1982-01-01T10:21:11')");
+        
+        //parameterized queries with transparent type coercion
+        client.query("INSERT INTO user(name, birthday) VALUES($1, $2)", ['santa', new Date()]);
+        
+        //nested queries with callbacks
+        client.query("SELECT * FROM user ORDER BY name", function(err, result) {
+          if(err) {
+            //handle query error
+          }
+          else {
+            client.query("SELECT birthday FROM user WHERE name = $1", [result.rows[0].name], function(err, result) {
+              //typed parameters and results
+              assert.ok(result.rows[0].birthday.getYear() === 1982)
+            })
+          }
+        })
+      }
+    }
+    
 ### Philosophy
 
 * well tested
 * no monkey patching
 * no dependencies (...besides PostgreSQL)
-* [extreme documentation](http://github.com/brianc/node-postgres/wiki)
+* [in-depth documentation](http://github.com/brianc/node-postgres/wiki)
 
 ### features
 
