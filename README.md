@@ -1,78 +1,54 @@
-node-pg-cursor
-==============
+# pg-query-stream
 
-Use a PostgreSQL result cursor from node with an easy to use API.
+Receive result rows from [pg](https://github.com/brianc/node-postgres) as a readable (object) stream.
 
-### why?
+This module __only works with the pure JavaScript client__.
 
-Sometimes you need to itterate through a table in chunks.  It's extremely inefficient to use hand-crafted `LIMIT` and `OFFSET` queries to do this.
-PostgreSQL provides built-in functionality to fetch a "cursor" to your results and page through the cursor efficiently fetching chunks of the results with full MVCC compliance.  
+## installation
 
-This actually ends up pairing very nicely with node's _asyncness_ and handling a lot of data.  PostgreSQL is rad.
+```bash
+$ npm install pg
+$ npm install pg-query-stream
+```
 
-### example
+_requires pg>=2.8.1_
+
+##### - or -
+
+```bash
+$ npm install pg.js
+$ npm install pg-query-stream
+```
+
+_requires pg.js>=2.8.1_
+
+## use
 
 ```js
-var Cursor = require('pg-cursor')
 var pg = require('pg')
+var QueryStream = require('pg-query-stream')
+var JSONStream = require('JSONStream')
 
+//pipe 1,000,000 rows to stdout without blowing up your memory usage
 pg.connect(function(err, client, done) {
-
-  //imagine some_table has 30,000,000 results where prop > 100
-  //lets create a query cursor to efficiently deal with the huge result set
-  var cursor = client.query(new Cursor('SELECT * FROM some_table WHERE prop > $1', [100]))
-  
-  //read the first 100 rows from this cursor
-  cursor.read(100, function(err, rows) {
-    if(err) {
-      //cursor error - release the client
-      //normally you'd do app-specific error handling here
-      return done(err)
-    }
-    
-    //when the cursor is exhausted and all rows have been returned
-    //all future calls to `cursor#read` will return an empty row array
-    //so if we received no rows, release the client and be done
-    if(!rows.length) return done()
-    
-    //do something with your rows
-    //when you're ready, read another chunk from
-    //your result
-    
-    
-    cursor.read(2000, function(err, rows) {
-      //I think you get the picture, yeah?
-      //if you dont...open an issue - I'd love to help you out!
-      
-      //Also - you probably want to use some sort of async or promise library to deal with paging
-      //through your cursor results.  node-pg-cursor makes no asumptions for you on that front.
-    })
-  })
-});
+  if(err) throw err;
+  var query = new QueryStream('SELECT * FROM generate_series(0, $1) num', [1000000])
+  var stream = client.query(query)
+  //release the client when the stream is finished
+  stream.on('end', done)
+  stream.pipe(JSONStream.stringify()).pipe(process.stdout)
+})
 ```
 
-### api
+The stream uses a cursor on the server so it efficiently keeps only a low number of rows in memory.
 
-#### var Cursor = require('pg-cursor')
+This is especially useful when doing [ETL](http://en.wikipedia.org/wiki/Extract,_transform,_load) on a huge table.  Using manual `limit` and `offset` queries to fake out async itteration through your data is cumbersom, and _way way way_ slower than using a cursor.
 
-#### constructor Cursor(string queryText, array queryParameters)
+## contribution
 
-Creates an instance of a query cursor.  Pass this instance to node-postgres [`client#query`](https://github.com/brianc/node-postgres/wiki/Client#wiki-method-query-parameterized)
+I'm very open to contribution!  Open a pull request with your code or idea and we'll talk about it.  If it's not way insane we'll merge it in too: isn't open source awesome?
 
-#### cursor#read(int rowCount, function callback(Error err, Array rows)
-
-Read `rowCount` rows from the cursor instance.  The `callback` will be called when the rows are available, loaded into memory, parsed, and converted to JavaScript types.
-
-If the cursor has read to the end of the result sets all subsequent calls to `cursor#read` will return a 0 length array of rows.  I'm open to other ways to signal the end of a cursor, but this has worked out well for me so far.
-
-### install
-
-```sh
-$ npm install pg-cursor
-```
-___note___: this depends on _either_ `npm install pg` or `npm install pg.js`, but you __must__ be using the pure JavaScript client.  This will __not work__ with the native bindings.
-
-### license
+## license
 
 The MIT License (MIT)
 
