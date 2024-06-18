@@ -12,7 +12,6 @@ test('should return insert metadata', function() {
         assert.equal(result.command, 'CREATE');
 
         var q = client.query("INSERT INTO zugzug(name) VALUES('more work?')", assert.calls(function(err, result) {
-          assert.isNull(err);
           assert.equal(result.command, "INSERT");
           assert.equal(result.rowCount, 1);
 

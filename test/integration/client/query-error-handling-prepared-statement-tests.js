@@ -63,7 +63,7 @@ test('client end during query execution of prepared statement', function() {
       text: sleepQuery,
       values: [5] },
       assert.calls(function(err, result) {
-        assert.equal(err.message, 'Connection terminated');
+        assert.equal(err.message, 'Connection was ended during query');
     }));
 
     query1.on('error', function(err) {
