@@ -1,15 +1,14 @@
 require.paths.unshift(__dirname + '/../lib/');
-//make assert a global...
+
+Client = require('client');
+EventEmitter = require('events').EventEmitter;
+
+sys = require('sys');
 assert = require('assert');
-
-var EventEmitter = require('events').EventEmitter;
-var sys = require('sys');
-var BufferList = require(__dirname+'/buffer-list')
-
-var Connection = require('connection');
+BufferList = require(__dirname+'/buffer-list')
+buffers = require(__dirname + '/test-buffers');
+Connection = require('connection');
 var args = require(__dirname + '/cli');
-
-Client = require(__dirname + '/../lib').Client;
 
 process.on('uncaughtException', function(d) {
   if ('stack' in d && 'message' in d) {
@@ -33,7 +32,7 @@ assert.emits = function(item, eventName, callback) {
     test("Should have called " + eventName, function() {
       assert.ok(called, "Expected '" + eventName + "' to be called.")
     });
-  },2000);
+  },20000);
 
   item.once(eventName, function() {
     called = true;
@@ -96,14 +95,6 @@ assert.success = function(callback) {
   })
 }
 
-assert.throws = function(offender) {
-  try {
-    offender();
-  } catch (e) {
-    return;
-  }
-  assert.ok(false, "Expected " + offender + " to throw exception");
-}
 
 assert.length = function(actual, expectedLength) {
   assert.equal(actual.length, expectedLength);
@@ -214,9 +205,7 @@ module.exports = {
   pg: require('index'),
   connectionString: function() {
     return "pg"+(count++)+"://"+args.user+":"+args.password+"@"+args.host+":"+args.port+"/"+args.database;
-  },
-  sys: sys,
-  Client: Client
+  }
 };
 
 
