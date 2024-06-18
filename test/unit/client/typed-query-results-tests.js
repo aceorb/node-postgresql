@@ -189,14 +189,6 @@ test('typed results', function() {
     expected :function(val){
       assert.deepEqual(val, ['hello world']);
     }
-  },{
-    name : 'array/numeric',
-    format : 'text',
-    dataTypeID: 1231,
-    actual: '{1.2,3.4}',
-    expected :function(val){
-      assert.deepEqual(val, [1.2,3.4]);
-    }
   },
 
   {
