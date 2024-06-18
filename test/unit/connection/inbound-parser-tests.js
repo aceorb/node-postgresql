@@ -1,6 +1,5 @@
 require(__dirname+'/test-helper');
-var Connection = require('connection');
-var buffers = require(__dirname + '/../../test-buffers');
+
 var PARSE = function(buffer) {
   return new Parser(buffer).parse();
 };

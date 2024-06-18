@@ -1,11 +1,10 @@
 require(__dirname + "/test-helper");
-var Connection = require('connection');
 var stream = new MemoryStream();
 var con = new Connection({
   stream: stream
 });
 
-assert.received = function(stream, buffer) {
+assert.recieved = function(stream, buffer) {
   assert.length(stream.packets, 1);
   var packet = stream.packets.pop();
   assert.equalBuffers(packet, buffer);
@@ -16,7 +15,7 @@ test("sends startup message", function() {
     user: 'brian',
     database: 'bang'
   });
-  assert.received(stream, new BufferList()
+  assert.recieved(stream, new BufferList()
                   .addInt16(3)
                   .addInt16(0)
                   .addCString('user')
@@ -28,13 +27,13 @@ test("sends startup message", function() {
 
 test('sends password message', function() {
   con.password("!");
-  assert.received(stream, new BufferList().addCString("!").join(true,'p'));
+  assert.recieved(stream, new BufferList().addCString("!").join(true,'p'));
 });
 
 test('sends query message', function() {
   var txt = 'select * from boom';
   con.query(txt);
-  assert.received(stream, new BufferList().addCString(txt).join(true,'Q'));
+  assert.recieved(stream, new BufferList().addCString(txt).join(true,'Q'));
 });
 
 test('sends parse message', function() {
@@ -43,7 +42,7 @@ test('sends parse message', function() {
     .addCString("")
     .addCString("!")
     .addInt16(0).join(true, 'P');
-  assert.received(stream, expected);
+  assert.recieved(stream, expected);
 });
 
 test('sends parse message with named query', function() {
@@ -56,7 +55,7 @@ test('sends parse message with named query', function() {
     .addCString("boom")
     .addCString("select * from boom")
     .addInt16(0).join(true,'P');
-  assert.received(stream, expected);
+  assert.recieved(stream, expected);
 
   test('with multiple parameters', function() {
     con.parse({
@@ -72,7 +71,7 @@ test('sends parse message with named query', function() {
       .addInt32(2)
       .addInt32(3)
       .addInt32(4).join(true,'P');
-    assert.received(stream, expected);
+    assert.recieved(stream, expected);
   });
 });
 
@@ -87,7 +86,7 @@ test('bind messages', function() {
       .addInt16(0)
       .addInt16(0)
       .join(true,"B");
-    assert.received(stream, expectedBuffer);
+    assert.recieved(stream, expectedBuffer);
   });
 
   test('with named statement, portal, and values', function() {
@@ -110,7 +109,7 @@ test('bind messages', function() {
       .add(Buffer('zing'))
       .addInt16(0)
       .join(true, 'B');
-    assert.received(stream, expectedBuffer);
+    assert.recieved(stream, expectedBuffer);
   });
 });
 
@@ -123,7 +122,7 @@ test("sends execute message", function() {
       .addCString('')
       .addInt32(0)
       .join(true,'E');
-    assert.received(stream, expectedBuffer);
+    assert.recieved(stream, expectedBuffer);
   });
 
   test("for named portal with row limit", function() {
@@ -135,38 +134,38 @@ test("sends execute message", function() {
       .addCString("my favorite portal")
       .addInt32(100)
       .join(true, 'E');
-    assert.received(stream, expectedBuffer);
+    assert.recieved(stream, expectedBuffer);
   });
 });
 
 test('sends flush command', function() {
   con.flush();
   var expected = new BufferList().join(true, 'H');
-  assert.received(stream, expected);
+  assert.recieved(stream, expected);
 });
 
 test('sends sync command', function() {
   con.sync();
   var expected = new BufferList().join(true,'S');
-  assert.received(stream, expected);
+  assert.recieved(stream, expected);
 });
 
 test('sends end command', function() {
   con.end();
   var expected = new Buffer([0x58, 0, 0, 0, 4]);
-  assert.received(stream, expected);
+  assert.recieved(stream, expected);
 });
 
 test('sends describe command',function() {
   test('describe statement', function() {
     con.describe({type: 'S', name: 'bang'});
     var expected = new BufferList().addChar('S').addCString('bang').join(true, 'D')
-    assert.received(stream, expected);
+    assert.recieved(stream, expected);
   });
 
   test("describe unnamed portal", function() {
     con.describe({type: 'P'});
     var expected = new BufferList().addChar('P').addCString("").join(true, "D");
-    assert.received(stream, expected);
+    assert.recieved(stream, expected);
   });
 });

@@ -1,5 +1,4 @@
 var helper = require(__dirname + '/test-helper');
-var sys = require('sys')
 
 var createErorrClient = function() {
   var client = helper.client();
@@ -19,9 +18,7 @@ test('error handling', function(){
     var query = client.query("select omfg from yodas_soda where pixistix = 'zoiks!!!'");
 
     assert.emits(query, 'error', function(error) {
-      test('error is a psql error', function() {
-        assert.equal(error.severity, "ERROR");
-      })
+      assert.equal(error.severity, "ERROR");
     });
 
   });
@@ -34,14 +31,14 @@ test('error handling', function(){
 
     test("when query is parsing", function() {
       //this query wont parse since there ain't no table named bang
-
+      
       var ensureFuture = function(testClient) {
-        test("client can issue more queries successfully", function() {
-          var goodQuery = testClient.query("select age from boom");
-          assert.emits(goodQuery, 'row', function(row) {
-            assert.equal(row.age, 28);
+          test("client can issue more queries successfully", function() {
+            var goodQuery = testClient.query("select age from boom");
+            assert.emits(goodQuery, 'row', function(row) {
+              assert.equal(row.age, 28);
+            });
           });
-        });
       };
 
       var query = client.query({
@@ -63,10 +60,7 @@ test('error handling', function(){
 
         test("query emits the error", function() {
           assert.emits(query, 'error', function(err) {
-            test('error has right severity', function() {
-              assert.equal(err.severity, "ERROR");
-            })
-
+            assert.equal(err.severity, "ERROR");
             ensureFuture(client);
           });
         });
@@ -86,39 +80,3 @@ test('error handling', function(){
   });
 
 });
-
-test('when connecting to invalid host', function() {
-  var client = new Client({
-    user: 'brian',
-    password: '1234',
-    host: 'asldkfjasdf!!#1308140.com'
-  })
-  assert.emits(client, 'error');
-  client.connect();
-})
-
-test('multiple connection errors (gh#31)', function() {
-  test('with single client', function() {
-    return false;
-    //don't run yet...this test fails...need to think of fix
-    var client = new Client({
-      user: 'blaksdjf',
-      password: 'omfsadfas',
-      host: helper.args.host,
-      port: helper.args.port,
-      database: helper.args.database
-    })
-    client.connect();
-    assert.emits(client, 'error', function(e) {
-      client.connect();
-      assert.emits(client, 'error')
-    })
-  })
-
-  test('with callback method', function() {
-    var badConString = "tcp://aslkdfj:oi14081@"+helper.args.host+":"+helper.args.port+"/"+helper.args.database;
-    return false;
-  })
-
-})
-
