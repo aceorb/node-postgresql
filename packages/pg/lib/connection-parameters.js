@@ -25,17 +25,8 @@ var val = function (key, config, envVar) {
   return config[key] || envVar || defaults[key]
 }
 
-var normalizeSSLConfig = function (modeFromConfig) {
-  // if the ssl parameter passed to config is not a string, just return it
-  // directly (it will be passed directly to tls.connect)
-  // this way you can pass all the ssl params in via constructor:
-  // new Client({ ssl: { minDHSize: 1024 } }) etc
-  if (modeFromConfig !== undefined && typeof modeFromConfig !== 'string') {
-    return modeFromConfig
-  }
-  const mode = modeFromConfig || process.env.PGSSLMODE
-
-  switch (mode) {
+var useSsl = function () {
+  switch (process.env.PGSSLMODE) {
     case 'disable':
       return false
     case 'prefer':
@@ -43,13 +34,6 @@ var normalizeSSLConfig = function (modeFromConfig) {
     case 'verify-ca':
     case 'verify-full':
       return true
-    // no-verify is not standard to libpq but allows specifying
-    // you require ssl but want to bypass server certificate validation.
-    // this is a very common way to connect in heroku so we support it
-    // vai both environment variables (PGSSLMODE=no-verify) as well
-    // as in connection string params ?ssl=no-verify
-    case 'no-verify':
-      return { rejectUnauthorized: false }
   }
   return defaults.ssl
 }
@@ -84,8 +68,7 @@ var ConnectionParameters = function (config) {
   })
 
   this.binary = val('binary', config)
-
-  this.ssl = normalizeSSLConfig(config.ssl)
+  this.ssl = typeof config.ssl === 'undefined' ? useSsl() : config.ssl
   this.client_encoding = val('client_encoding', config)
   this.replication = val('replication', config)
   // a domain socket begins with '/'
