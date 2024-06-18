@@ -1,6 +1,15 @@
 language: node_js
+dist: trusty
+sudo: false
 node_js:
-  - '0.10'
-  - '6.9'
-  - '8'
-after_success: 'npm run coveralls'
+  - "4.2"
+  - "6"
+  - "8"
+env:
+  - PGUSER=postgres
+services:
+  - postgresql
+addons:
+  postgresql: "9.6"
+before_script:
+  - psql -c 'create database travis;' -U postgres | true
