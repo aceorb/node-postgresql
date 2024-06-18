@@ -1,8 +1,2 @@
-*~
-build/
-.lock-wscript
-*.log
-node_modules/
-package-lock.json
-*.swp
-dist
+node_modules
+npm-debug.log
