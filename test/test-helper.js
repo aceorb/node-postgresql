@@ -101,7 +101,7 @@ assert.success = function(callback) {
       if(err) {
         console.log(err);
       }
-      assert(!err);
+      assert.isNull(err);
       callback(arg);
     });
   } else if (callback.length === 2) {
@@ -109,7 +109,7 @@ assert.success = function(callback) {
       if(err) {
         console.log(err);
       }
-      assert(!err);
+      assert.isNull(err);
       callback(arg1, arg2);
     });
   } else {
@@ -139,8 +139,7 @@ var expect = function(callback, timeout) {
       "Expected execution of function to be fired within " + timeout
       + " milliseconds " +
       + " (hint: export TEST_TIMEOUT=<timeout in milliseconds>"
-      + " to change timeout globally)"
-      + callback.toString());
+      + " to change timeout globally)");
   }, timeout)
 
   if(callback.length < 3) {
