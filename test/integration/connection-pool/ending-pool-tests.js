@@ -8,13 +8,12 @@ test('disconnects', function() {
     helper.pg.end();
   });
   [helper.config, helper.config, helper.config, helper.config].forEach(function(config) {
-    helper.pg.connect(config, function(err, client, done) {
+    helper.pg.connect(config, function(err, client) {
       assert.isNull(err);
       client.query("SELECT * FROM NOW()", function(err, result) {
         process.nextTick(function() {
           assert.equal(called, false, "Should not have disconnected yet")
           sink.add();
-          done();
         })
       })
     })

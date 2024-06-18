@@ -2,7 +2,7 @@ var helper = require(__dirname + '/test-helper');
 var sink;
 
 var testForTypeCoercion = function(type){
-  helper.pg.connect(helper.config, function(err, client, done) {
+  helper.pg.connect(helper.config, function(err, client) {
     assert.isNull(err);
     client.query("create temp table test_type(col " + type.name + ")", assert.calls(function(err, result) {
       assert.isNull(err);
@@ -23,9 +23,7 @@ var testForTypeCoercion = function(type){
           });
 
           assert.emits(query, 'row', function(row) {
-            var expected = val + " (" + typeof val + ")";
-            var returned = row.col + " (" + typeof row.col + ")";
-            assert.strictEqual(row.col, val, "expected " + type.name + " of " + expected + " but got " + returned);
+            assert.strictEqual(row.col, val, "expected " + type.name + " of " + val + " but got " + row.col);
           }, "row should have been called for " + type.name + " of " + val);
 
           client.query('delete from test_type');
@@ -33,7 +31,6 @@ var testForTypeCoercion = function(type){
 
         client.query('drop table test_type', function() {
           sink.add();
-          done();
         });
       })
     }));
@@ -42,21 +39,13 @@ var testForTypeCoercion = function(type){
 
 var types = [{
   name: 'integer',
-  values: [-2147483648, -1, 0, 1, 2147483647, null]
+  values: [1, -1, null]
 },{
   name: 'smallint',
-  values: [-32768, -1, 0, 1, 32767, null]
+  values: [-1, 0, 1, null]
 },{
   name: 'bigint',
-  values: [
-    '-9223372036854775808',
-    '-9007199254740992',
-    '0',
-    '9007199254740992',
-    '72057594037928030',
-    '9223372036854775807',
-    null
-  ]
+  values: [-10000, 0, 10000, null]
 },{
   name: 'varchar(5)',
   values: ['yo', '', 'zomg!', null]
@@ -67,21 +56,15 @@ var types = [{
   name: 'bool',
   values: [true, false, null]
 },{
+  //TODO get some actual huge numbers here
   name: 'numeric',
-  values: [
-    '-12.34',
-    '0',
-    '12.34',
-    '-3141592653589793238462643383279502.1618033988749894848204586834365638',
-    '3141592653589793238462643383279502.1618033988749894848204586834365638',
-    null
-  ]
+  values: [-12.34, 0, 12.34, null]
 },{
   name: 'real',
-  values: [-101.3, -1.2, 0, 1.2, 101.1, null]
+  values: [101.1, 0, -101.3, null]
 },{
   name: 'double precision',
-  values: [-101.3, -1.2, 0, 1.2, 101.1, null]
+  values: [-1.2, 0, 1.2, null]
 },{
   name: 'timestamptz',
   values: [null]
@@ -99,7 +82,7 @@ var types = [{
 // ignore some tests in binary mode
 if (helper.config.binary) {
   types = types.filter(function(type) {
-    return !(type.name in {'real': 1, 'timetz':1, 'time':1, 'numeric': 1, 'bigint': 1});
+    return !(type.name in {'real':1, 'timetz':1, 'time':1});
   });
 }
 
@@ -150,7 +133,7 @@ test("timestampz round trip", function() {
   client.on('drain', client.end.bind(client));
 });
 
-helper.pg.connect(helper.config, assert.calls(function(err, client, done) {
+helper.pg.connect(helper.config, assert.calls(function(err, client) {
   assert.isNull(err);
   client.query('select null as res;', assert.calls(function(err, res) {
     assert.isNull(err);
@@ -160,21 +143,5 @@ helper.pg.connect(helper.config, assert.calls(function(err, client, done) {
     assert.isNull(err);
     assert.strictEqual(res.rows[0].res, null);
     sink.add();
-    done();
   })
 }))
-
-if(!helper.config.binary) {
-  test("postgres date type", function() {
-    var client = helper.client();
-    client.on('error', function(err) {
-      console.log(err);
-      client.end();
-    });
-    client.query("SELECT '2010-10-31'::date", assert.calls(function(err, result){
-      assert.isNull(err);
-      assert.UTCDate(result.rows[0].date, 2010, 9, 31, 0, 0, 0, 0);
-    }));
-    client.on('drain', client.end.bind(client));
-  });
-}

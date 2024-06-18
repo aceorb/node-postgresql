@@ -6,6 +6,7 @@ var sys = require('util');
 var BufferList = require(__dirname+'/buffer-list')
 
 var Connection = require(__dirname + '/../lib/connection');
+var args = require(__dirname + '/cli');
 
 Client = require(__dirname + '/../lib').Client;
 
@@ -28,10 +29,10 @@ assert.same = function(actual, expected) {
 assert.emits = function(item, eventName, callback, message) {
   var called = false;
   var id = setTimeout(function() {
-    test("Should have called '" + eventName + "' event", function() {
+    test("Should have called " + eventName, function() {
       assert.ok(called, message || "Expected '" + eventName + "' to be called.")
     });
-  },5000);
+  },2000);
 
   item.once(eventName, function() {
     if (eventName === 'error') {
@@ -96,25 +97,13 @@ assert.empty = function(actual) {
 };
 
 assert.success = function(callback) {
-  if(callback.length === 1 || callback.length === 0) {
-    return assert.calls(function(err, arg) {
-      if(err) {
-        console.log(err);
-      }
-      assert.isNull(err);
-      callback(arg);
-    });
-  } else if (callback.length === 2) {
-    return assert.calls(function(err, arg1, arg2) {
-      if(err) {
-        console.log(err);
-      }
-      assert.isNull(err);
-      callback(arg1, arg2);
-    });
-  } else {
-    throw new Error('need to preserve arrity of wrapped function');
-  }
+  return assert.calls(function(err, arg) {
+    if(err) {
+      console.log(err);
+    }
+    assert.isNull(err);
+    callback(arg);
+  })
 }
 
 assert.throws = function(offender) {
@@ -135,28 +124,15 @@ var expect = function(callback, timeout) {
   var executed = false;
   var id = setTimeout(function() {
     assert.ok(executed, "Expected execution of function to be fired");
-  }, timeout || 5000)
+  }, timeout || 2000)
 
-  if(callback.length < 3) {
-    return function(err, queryResult) {
-      clearTimeout(id);
-      if (err) {
-        assert.ok(err instanceof Error, "Expected errors to be instances of Error: " + sys.inspect(err));
-      }
-      callback.apply(this, arguments)
+  return function(err, queryResult) {
+    clearTimeout(id);
+    if (err) {
+      assert.ok(err instanceof Error, "Expected errors to be instances of Error: " + sys.inspect(err));
     }
-  } else if(callback.length == 3) {
-    return function(err, arg1, arg2) {
-      clearTimeout(id);
-      if (err) {
-        assert.ok(err instanceof Error, "Expected errors to be instances of Error: " + sys.inspect(err));
-      }
-      callback.apply(this, arguments)
-    }
-  } else {
-    throw new Error("Unsupported arrity " + callback.length);
+    callback.apply(this, arguments)
   }
-
 }
 assert.calls = expect;
 
@@ -167,24 +143,47 @@ assert.isNull = function(item, message) {
 
 test = function(name, action) {
   test.testCount ++;
-  test[name] = action;
-  var result = test[name]();
+  if(args.verbose) {
+    console.log(name);
+  }
+  var result = action();
   if(result === false) {
-    process.stdout.write('?');
+    test.ignored.push(name);
+    if(!args.verbose) {
+      process.stdout.write('?');
+    }
   }else{
-    process.stdout.write('.');
+    if(!args.verbose) {
+      process.stdout.write('.');
+    }
   }
 };
 
 //print out the filename
 process.stdout.write(require('path').basename(process.argv[1]));
-var args = require(__dirname + '/cli');
-if(args.binary) process.stdout.write(' (binary)');
-if(args.native) process.stdout.write(' (native)');
+//print a new line since we'll be printing test names
+if(args.verbose) {
+  console.log();
+}
+test.testCount = test.testCount || 0;
+test.ignored = test.ignored || [];
+test.errors = test.errors || [];
 
 process.on('exit', function() {
-  console.log('')
-})
+  console.log('');
+  if(test.ignored.length || test.errors.length) {
+    test.ignored.forEach(function(name) {
+      console.log("Ignored: " + name);
+    });
+    test.errors.forEach(function(error) {
+      console.log("Error: " + error.name);
+    });
+    console.log('');
+  }
+  test.errors.forEach(function(error) {
+    throw error.e;
+  });
+});
 
 process.on('uncaughtException', function(err) {
   console.error("\n %s", err.stack || err.toString())
@@ -195,7 +194,7 @@ process.on('uncaughtException', function(err) {
 var count = 0;
 
 var Sink = function(expected, timeout, callback) {
-  var defaultTimeout = 5000;
+  var defaultTimeout = 1000;
   if(typeof timeout == 'function') {
     callback = timeout;
     timeout = defaultTimeout;
@@ -222,11 +221,10 @@ var Sink = function(expected, timeout, callback) {
   }
 }
 
-
 module.exports = {
+  args: args,
   Sink: Sink,
   pg: require(__dirname + '/../lib/'),
-  args: args,
   config: args,
   sys: sys,
   Client: Client

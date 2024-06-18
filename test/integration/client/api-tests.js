@@ -1,5 +1,9 @@
 var helper = require(__dirname + '/../test-helper');
-var pg = helper.pg;
+var pg = require(__dirname + '/../../../lib');
+
+if(helper.args.native) {
+  pg = require(__dirname + '/../../../lib').native;
+}
 
 var log = function() {
   //console.log.apply(console, arguments);
@@ -12,13 +16,7 @@ var sink = new helper.Sink(5, 10000, function() {
 
 test('api', function() {
   log("connecting to %j", helper.config)
-  //test weird callback behavior with node-pool
-  pg.connect(helper.config, function(err) {
-    assert.isNull(err);
-    arguments[1].emit('drain');
-    arguments[2]();
-  });
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.equal(err, null, "Failed to connect: " + helper.sys.inspect(err));
 
     client.query('CREATE TEMP TABLE band(name varchar(100))');
@@ -53,14 +51,14 @@ test('api', function() {
         assert.equal(result.rows.pop().name, 'the flaming lips');
         assert.equal(result.rows.pop().name, 'the beach boys');
         sink.add();
-        done();
       }))
     }))
+
   }))
 })
 
 test('executing nested queries', function() {
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.isNull(err);
     log("connected for nested queriese")
     client.query('select now as now from NOW()', assert.calls(function(err, result) {
@@ -70,7 +68,6 @@ test('executing nested queries', function() {
           log('all nested queries recieved')
           assert.ok('all queries hit')
           sink.add();
-          done();
         }))
       }))
     }))
@@ -80,29 +77,27 @@ test('executing nested queries', function() {
 test('raises error if cannot connect', function() {
   var connectionString = "pg://sfalsdkf:asdf@localhost/ieieie";
   log("trying to connect to invalid place for error")
-  pg.connect(connectionString, assert.calls(function(err, client, done) {
+  pg.connect(connectionString, assert.calls(function(err, client) {
     assert.ok(err, 'should have raised an error')
     log("invalid connection supplied error to callback")
     sink.add();
-    done();
   }))
 })
 
 test("query errors are handled and do not bubble if callback is provded", function() {
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.isNull(err)
     log("checking for query error")
     client.query("SELECT OISDJF FROM LEIWLISEJLSE", assert.calls(function(err, result) {
       assert.ok(err);
       log("query error supplied error to callback")
       sink.add();
-      done();
     }))
   }))
 })
 
 test('callback is fired once and only once', function() {
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.isNull(err);
     client.query("CREATE TEMP TABLE boom(name varchar(10))");
     var callCount = 0;
@@ -113,13 +108,12 @@ test('callback is fired once and only once', function() {
     ].join(";"), function(err, callback) {
       assert.equal(callCount++, 0, "Call count should be 0.  More means this callback fired more than once.");
       sink.add();
-      done();
     })
   }))
 })
 
 test('can provide callback and config object', function() {
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.isNull(err);
     client.query({
       name: 'boom',
@@ -127,13 +121,12 @@ test('can provide callback and config object', function() {
     }, assert.calls(function(err, result) {
       assert.isNull(err);
       assert.equal(result.rows[0].now.getYear(), new Date().getYear())
-      done();
     }))
   }))
 })
 
 test('can provide callback and config and parameters', function() {
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.isNull(err);
     var config = {
       text: 'select $1::text as val'
@@ -142,13 +135,12 @@ test('can provide callback and config and parameters', function() {
       assert.isNull(err);
       assert.equal(result.rows.length, 1);
       assert.equal(result.rows[0].val, 'hi');
-      done();
     }))
   }))
 })
 
 test('null and undefined are both inserted as NULL', function() {
-  pg.connect(helper.config, assert.calls(function(err, client, done) {
+  pg.connect(helper.config, assert.calls(function(err, client) {
     assert.isNull(err);
     client.query("CREATE TEMP TABLE my_nulls(a varchar(1), b varchar(1), c integer, d integer, e date, f date)");
     client.query("INSERT INTO my_nulls(a,b,c,d,e,f) VALUES ($1,$2,$3,$4,$5,$6)", [ null, undefined, null, undefined, null, undefined ]);
@@ -161,7 +153,6 @@ test('null and undefined are both inserted as NULL', function() {
         assert.isNull(result.rows[0].d);
         assert.isNull(result.rows[0].e);
         assert.isNull(result.rows[0].f);
-        done();
     }))
   }))
 })
