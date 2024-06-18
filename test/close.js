@@ -1,52 +1,35 @@
-var assert = require('assert')
-var concat = require('concat-stream')
+const assert = require('assert')
+const Cursor = require('../')
+const pg = require('pg')
 
-var QueryStream = require('../')
-var helper = require('./helper')
-
-helper('close', function (client) {
-  it('emits close', function (done) {
-    var stream = new QueryStream('SELECT * FROM generate_series(0, $1) num', [3], {batchSize: 2, highWaterMark: 2})
-    var query = client.query(stream)
-    query.pipe(concat(function () {}))
-    query.on('close', done)
+const text = 'SELECT generate_series as num FROM generate_series(0, 50)'
+describe('close', function() {
+  beforeEach(function(done) {
+    const client = (this.client = new pg.Client())
+    client.connect(done)
+    client.on('drain', client.end.bind(client))
   })
-})
 
-helper('early close', function (client) {
-  it('can be closed early', function (done) {
-    var stream = new QueryStream('SELECT * FROM generate_series(0, $1) num', [20000], {batchSize: 2, highWaterMark: 2})
-    var query = client.query(stream)
-    var readCount = 0
-    query.on('readable', function () {
-      readCount++
-      query.read()
-    })
-    query.once('readable', function () {
-      query.close()
-    })
-    query.on('close', function () {
-      assert(readCount < 10, 'should not have read more than 10 rows')
-      done()
+  it('closes cursor early', function(done) {
+    const cursor = new Cursor(text)
+    this.client.query(cursor)
+    this.client.query('SELECT NOW()', done)
+    cursor.read(25, function(err) {
+      assert.ifError(err)
+      cursor.close()
     })
   })
-})
 
-helper('close callback', function (client) {
-  it('notifies an optional callback when the conneciton is closed', function (done) {
-    var stream = new QueryStream('SELECT * FROM generate_series(0, $1) num', [10], {batchSize: 2, highWaterMark: 2})
-    var query = client.query(stream)
-    query.once('readable', function () { // only reading once
-      query.read()
-    })
-    query.once('readable', function () {
-      query.close(function () {
-        // nothing to assert.  This test will time out if the callback does not work.
-        done()
+  it('works with callback style', function(done) {
+    const cursor = new Cursor(text)
+    const client = this.client
+    client.query(cursor)
+    cursor.read(25, function(err) {
+      assert.ifError(err)
+      cursor.close(function(err) {
+        assert.ifError(err)
+        client.query('SELECT NOW()', done)
       })
-    })
-    query.on('close', function () {
-      assert(false, 'close event should not fire') // no close event because we did not read to the end of the stream.
     })
   })
 })
