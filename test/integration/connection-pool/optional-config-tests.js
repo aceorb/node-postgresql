@@ -10,11 +10,5 @@ helper.pg.defaults.poolSize = 1;
 
 helper.pg.connect(assert.calls(function(err, client) {
   assert.isNull(err);
-  client.query('SELECT NOW()');
-  client.once('drain', function() {
-    setTimeout(function() {
-      helper.pg.end();
-      
-    }, 10);
-  });
+  client.end();
 }));
